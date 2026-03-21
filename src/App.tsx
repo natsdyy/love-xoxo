@@ -1,0 +1,71 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import DashboardLayout from './admin/layouts/DashboardLayout';
+import AdminDashboard from './admin/pages/Dashboard';
+import AdminStockPanel from './admin/pages/StockPanel';
+import AdminInventory from './admin/pages/Inventory';
+import AdminSold from './admin/pages/Sold';
+import AdminPending from './admin/pages/Pending';
+import AdminRefund from './admin/pages/Refund';
+import AdminOnSale from './admin/pages/OnSale';
+import AdminMonitoring from './admin/pages/Monitoring';
+import AdminReplacements from './admin/pages/Replacements';
+import AdminSalary from './admin/pages/Salary';
+
+// Owner Imports
+import OwnerLayout from './owner/layouts/OwnerLayout';
+import OwnerNewStocks from './owner/pages/NewStocks';
+import OwnerStockPanel from './owner/pages/StockPanel';
+import OwnerListStocks from './owner/pages/ListStocks';
+import OwnerInventory from './owner/pages/Inventory';
+import OwnerOrders from './owner/pages/Orders';
+import OwnerCapital from './owner/pages/Capital';
+import OwnerPrice from './owner/pages/Price';
+import OwnerApproval from './owner/pages/Approval';
+import OwnerSold from './owner/pages/Sold';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Admin Routes */}
+        <Route path="/admin" element={<DashboardLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="stock" element={<AdminStockPanel />} />
+          <Route path="inventory" element={<AdminInventory />} />
+          <Route path="sold" element={<AdminSold />} />
+          <Route path="pending" element={<AdminPending />} />
+          <Route path="refund" element={<AdminRefund />} />
+          <Route path="sale" element={<AdminOnSale />} />
+          <Route path="monitoring" element={<AdminMonitoring />} />
+          <Route path="replacement" element={<AdminReplacements />} />
+          <Route path="salary" element={<AdminSalary />} />
+        </Route>
+
+        {/* Owner Routes */}
+        <Route path="/owner" element={<OwnerLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="new-stocks" element={<OwnerNewStocks />} />
+          <Route path="stock" element={<OwnerStockPanel />} />
+          <Route path="list-stocks" element={<OwnerListStocks />} />
+          <Route path="inventory" element={<OwnerInventory />} />
+          <Route path="sold" element={<OwnerSold />} />
+          <Route path="pending" element={<AdminPending />} />
+          <Route path="refund" element={<AdminRefund />} />
+          <Route path="orders" element={<OwnerOrders />} />
+          <Route path="capital" element={<OwnerCapital />} />
+          <Route path="price" element={<OwnerPrice />} />
+          <Route path="sale" element={<AdminOnSale />} />
+          <Route path="monitoring" element={<AdminMonitoring />} />
+          <Route path="replacement" element={<AdminReplacements />} />
+          <Route path="approval" element={<OwnerApproval />} />
+          <Route path="salary" element={<AdminSalary />} />
+        </Route>
+
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
