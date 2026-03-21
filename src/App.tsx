@@ -22,6 +22,7 @@ import OwnerCapital from './owner/pages/Capital';
 import OwnerPrice from './owner/pages/Price';
 import OwnerApproval from './owner/pages/Approval';
 import OwnerSold from './owner/pages/Sold';
+import OwnerRefund from './owner/pages/Refund';
 
 // Auth Imports
 import Login from './pages/Login';
@@ -78,7 +79,7 @@ function App() {
           <Route path="inventory" element={<OwnerInventory />} />
           <Route path="sold" element={<OwnerSold />} />
           <Route path="pending" element={<AdminPending />} />
-          <Route path="refund" element={<AdminRefund />} />
+          <Route path="refund" element={<OwnerRefund />} />
           <Route path="orders" element={<OwnerOrders />} />
           <Route path="capital" element={<OwnerCapital />} />
           <Route path="price" element={<OwnerPrice />} />
