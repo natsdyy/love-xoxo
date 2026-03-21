@@ -1,13 +1,11 @@
-import { UserCheck } from 'lucide-react';
-
 export default function Approval() {
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-sm border border-pink-100 flex flex-col items-center justify-center min-h-[400px] text-center">
-      <div className="bg-pink-100 text-pink-500 p-4 rounded-2xl mb-4">
-        <UserCheck size={40} />
+    <div className="p-6">
+      <h1 className="text-xl font-bold text-[#4a1d4a] mb-6 px-2 tracking-tight">Approval Section</h1>
+      
+      <div className="bg-white rounded-[2rem] shadow-sm border border-pink-50 p-6 flex items-center justify-center min-h-[140px]">
+        <p className="text-[#ee6996] font-medium text-sm">No pending approvals</p>
       </div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-2">Approvals</h2>
-      <p className="text-slate-500 max-w-sm">This page will manage approvals for sales and other actions.</p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ export default function Dashboard() {
       <div className="bg-pink-100 rounded-xl p-6 flex justify-between items-center shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-800">Welcome back, Mir!</h2>
-          <p className="text-sm text-gray-600 mt-1">XZ Shop Access - Inventory & Sales Management</p>
+          <p className="text-sm text-gray-600 mt-1">Love, Xoxo - Inventory & Sales Management</p>
         </div>
         <div className="text-right text-xs text-gray-500 space-y-1">
           <p>Owner: @xzelise (Telegram)</p>

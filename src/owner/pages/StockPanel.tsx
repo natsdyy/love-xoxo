@@ -16,7 +16,19 @@ export default function StockPanel() {
             <label className="text-xs font-bold text-[#ee6996] ml-1">Stock Email</label>
             <div className="relative">
               <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3.5 text-sm text-slate-500 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                <option>Select email</option>
+                <option value="">Select email</option>
+                <optgroup label="entertainment">
+                  {/* emails will go here */}
+                </optgroup>
+                <optgroup label="educational">
+                  {/* emails will go here */}
+                </optgroup>
+                <optgroup label="editing">
+                  {/* emails will go here */}
+                </optgroup>
+                <optgroup label="other services">
+                  {/* emails will go here */}
+                </optgroup>
               </select>
               <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>

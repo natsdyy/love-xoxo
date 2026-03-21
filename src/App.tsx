@@ -23,6 +23,11 @@ import OwnerPrice from './owner/pages/Price';
 import OwnerApproval from './owner/pages/Approval';
 import OwnerSold from './owner/pages/Sold';
 import OwnerRefund from './owner/pages/Refund';
+import OwnerOnSale from './owner/pages/OnSale';
+import OwnerMonitoring from './owner/pages/Monitoring';
+import OwnerReplacements from './owner/pages/Replacements';
+import OwnerSalary from './owner/pages/Salary';
+import OwnerPending from './owner/pages/Pending';
 
 // Auth Imports
 import Login from './pages/Login';
@@ -75,19 +80,19 @@ function App() {
           <Route index element={<AdminDashboard />} />
           <Route path="new-stocks" element={<OwnerNewStocks />} />
           <Route path="stock" element={<OwnerStockPanel />} />
-          <Route path="list-stocks" element={<OwnerListStocks />} />
+          <Route path="list" element={<OwnerListStocks />} />
           <Route path="inventory" element={<OwnerInventory />} />
           <Route path="sold" element={<OwnerSold />} />
-          <Route path="pending" element={<AdminPending />} />
+          <Route path="pending" element={<OwnerPending />} />
           <Route path="refund" element={<OwnerRefund />} />
           <Route path="orders" element={<OwnerOrders />} />
           <Route path="capital" element={<OwnerCapital />} />
           <Route path="price" element={<OwnerPrice />} />
-          <Route path="sale" element={<AdminOnSale />} />
-          <Route path="monitoring" element={<AdminMonitoring />} />
-          <Route path="replacement" element={<AdminReplacements />} />
+          <Route path="sale" element={<OwnerOnSale />} />
+          <Route path="monitoring" element={<OwnerMonitoring />} />
+          <Route path="replacement" element={<OwnerReplacements />} />
           <Route path="approval" element={<OwnerApproval />} />
-          <Route path="salary" element={<AdminSalary />} />
+          <Route path="salary" element={<OwnerSalary />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/login" replace />} />

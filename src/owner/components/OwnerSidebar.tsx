@@ -24,7 +24,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/owner' },
   { icon: PackagePlus, label: 'New Stocks', path: '/owner/new-stocks' },
   { icon: Package, label: 'Stock Panel', path: '/owner/stock' },
-  { icon: List, label: 'List of Stocks', path: '/owner/list-stocks' },
+  { icon: List, label: 'List of Stocks', path: '/owner/list' },
   { icon: ClipboardList, label: 'Inventory', path: '/owner/inventory' },
   { icon: CheckCircle2, label: 'Sold', path: '/owner/sold' },
   { icon: Clock, label: 'Pending', path: '/owner/pending' },

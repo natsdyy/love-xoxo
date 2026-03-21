@@ -38,7 +38,7 @@ export default function Login() {
 
         {/* Title Section */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">XZ Shop Access</h1>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Love, Xoxo Access</h1>
           <p className="text-[13px] text-gray-500 font-medium mt-1">Inventory & Sales Management</p>
         </div>
 

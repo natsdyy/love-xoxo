@@ -31,7 +31,11 @@ export default function NewStocks() {
               </label>
               <div className="relative">
                 <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option>Select</option>
+                  <option value="">Select category</option>
+                  <option value="entertainment">entertainment</option>
+                  <option value="educational">educational</option>
+                  <option value="editing">editing</option>
+                  <option value="other services">other services</option>
                 </select>
                 <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
@@ -43,7 +47,41 @@ export default function NewStocks() {
               </label>
               <div className="relative">
                 <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option>Select</option>
+                  <option value="">Select service</option>
+                  <optgroup label="entertainment">
+                    <option value="netflix">netflix</option>
+                    <option value="disney">disney</option>
+                    <option value="hbo max">hbo max</option>
+                    <option value="viu">viu</option>
+                    <option value="prime video">prime video</option>
+                    <option value="vivaone">vivaone</option>
+                    <option value="vivamax">vivamax</option>
+                    <option value="loklok basic">loklok basic</option>
+                    <option value="loklok standard">loklok standard</option>
+                    <option value="youtube">youtube</option>
+                    <option value="crunchyroll">crunchyroll</option>
+                    <option value="iwanttfc">iwanttfc</option>
+                    <option value="spotify">spotify</option>
+                  </optgroup>
+                  <optgroup label="educational">
+                    <option value="grammarly">grammarly</option>
+                    <option value="quizlet">quizlet</option>
+                    <option value="quillbot">quillbot</option>
+                    <option value="scribd">scribd</option>
+                    <option value="studocu">studocu</option>
+                    <option value="chatgpt">chatgpt</option>
+                    <option value="ms365">ms365</option>
+                    <option value="gemini ai">gemini ai</option>
+                  </optgroup>
+                  <optgroup label="editing">
+                    <option value="canva">canva</option>
+                    <option value="capcut">capcut</option>
+                    <option value="picsart">picsart</option>
+                  </optgroup>
+                  <optgroup label="other services">
+                    <option value="telegram premium">telegram premium</option>
+                    <option value="domain making">domain making</option>
+                  </optgroup>
                 </select>
                 <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
@@ -58,7 +96,20 @@ export default function NewStocks() {
               </label>
               <div className="relative">
                 <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option>Select</option>
+                  <option value="">Select duration</option>
+                  <option value="1 month">1 month</option>
+                  <option value="2 months">2 months</option>
+                  <option value="3 months">3 months</option>
+                  <option value="4 months">4 months</option>
+                  <option value="5 months">5 months</option>
+                  <option value="6 months">6 months</option>
+                  <option value="7 months">7 months</option>
+                  <option value="8 months">8 months</option>
+                  <option value="9 months">9 months</option>
+                  <option value="10 months">10 months</option>
+                  <option value="11 months">11 months</option>
+                  <option value="1 year">1 year</option>
+                  <option value="lifetime">lifetime</option>
                 </select>
                 <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
@@ -102,7 +153,18 @@ export default function NewStocks() {
                 </label>
                 <div className="relative">
                   <select className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                    <option>Select category</option>
+                    <option value="">Select category</option>
+                    <option value="solo profile">solo profile</option>
+                    <option value="shared">shared</option>
+                    <option value="solo account">solo account</option>
+                    <option value="invite">invite</option>
+                    <option value="individual">individual</option>
+                    <option value="famhead">famhead</option>
+                    <option value="edu">edu</option>
+                    <option value="chichiro">chichiro</option>
+                    <option value="haku">haku</option>
+                    <option value="howl">howl</option>
+                    <option value="other">other (custom category)</option>
                   </select>
                   <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
