@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import DashboardLayout from './admin/layouts/DashboardLayout';
 import AdminDashboard from './admin/pages/Dashboard';
 import AdminStockPanel from './admin/pages/StockPanel';
@@ -23,12 +23,36 @@ import OwnerPrice from './owner/pages/Price';
 import OwnerApproval from './owner/pages/Approval';
 import OwnerSold from './owner/pages/Sold';
 
+// Auth Imports
+import Login from './pages/Login';
+
+const ProtectedRoute = ({ children, allowedRole }: { children: React.ReactNode, allowedRole: string }) => {
+  const userRole = localStorage.getItem('userRole');
+  const location = useLocation();
+
+  if (!userRole) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (userRole !== allowedRole) {
+    return <Navigate to={userRole === 'admin' ? '/admin' : '/owner'} replace />;
+  }
+
+  return <>{children}</>;
+};
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<Login />} />
+        
         {/* Admin Routes */}
-        <Route path="/admin" element={<DashboardLayout />}>
+        <Route path="/admin" element={
+          <ProtectedRoute allowedRole="admin">
+            <DashboardLayout />
+          </ProtectedRoute>
+        }>
           <Route index element={<AdminDashboard />} />
           <Route path="stock" element={<AdminStockPanel />} />
           <Route path="inventory" element={<AdminInventory />} />
@@ -42,7 +66,11 @@ function App() {
         </Route>
 
         {/* Owner Routes */}
-        <Route path="/owner" element={<OwnerLayout />}>
+        <Route path="/owner" element={
+          <ProtectedRoute allowedRole="owner">
+            <OwnerLayout />
+          </ProtectedRoute>
+        }>
           <Route index element={<AdminDashboard />} />
           <Route path="new-stocks" element={<OwnerNewStocks />} />
           <Route path="stock" element={<OwnerStockPanel />} />
@@ -61,8 +89,8 @@ function App() {
           <Route path="salary" element={<AdminSalary />} />
         </Route>
 
-        <Route path="/" element={<Navigate to="/admin" replace />} />
-        <Route path="*" element={<Navigate to="/admin" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
