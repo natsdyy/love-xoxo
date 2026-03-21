@@ -1,6 +1,93 @@
-import { Plus, Mail, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Mail, ChevronDown, X } from 'lucide-react';
+
+interface BulkModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  caption: string;
+  type: 'same' | 'different';
+}
+
+function BulkModal({ isOpen, onClose, title, caption, type }: BulkModalProps) {
+  const [content, setContent] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-pink-50">
+        <div className="bg-white px-8 pt-8 pb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-[#ee6996] leading-tight">{title}</h2>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-pink-50 rounded-full text-slate-300 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+              {type === 'same' ? 'Enter slots/profiles (one per line)' : 'Enter emails (one per line)'}
+            </label>
+            <div className="relative group">
+              <textarea 
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={type === 'same' ? "Slot 1\nSlot 2\nSlot 3" : "email1@example.com\nemail2@example.com\nemail3@example.com"}
+                rows={6}
+                className="w-full bg-white border-2 border-pink-100 rounded-[1.5rem] px-5 py-4 text-sm font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all resize-none shadow-sm placeholder:text-slate-200 placeholder:italic"
+              />
+            </div>
+            <p className="text-[10px] font-bold text-[#ee6996] italic ml-1 mt-2">
+              {caption}
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 bg-pink-50 text-[#ee6996] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-pink-100 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              disabled={!content.trim()}
+              className={`flex-[2] py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all ${
+                !content.trim() 
+                ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none' 
+                : 'bg-gradient-to-r from-[#ee6996] to-[#f58eb2] text-white shadow-pink-200/50 hover:scale-[1.02] active:scale-[0.98]'
+              }`}
+            >
+              Create Items
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function NewStocks() {
+  const [modalType, setModalType] = useState<'same' | 'different' | null>(null);
+  const [slotEntries, setSlotEntries] = useState([
+    { id: 1, qty: 1, slot: '', pin: '' },
+    { id: 2, qty: 1, slot: '', pin: '' }
+  ]);
+
+  const addSlotEntry = () => {
+    setSlotEntries([
+      ...slotEntries,
+      { id: Date.now(), qty: 1, slot: '', pin: '' }
+    ]);
+  };
+
+  const removeSlotEntry = (id: number) => {
+    setSlotEntries(slotEntries.filter(entry => entry.id !== id));
+  };
+
   return (
     <div className="max-w-5xl mx-auto pb-12">
       <div className="bg-white rounded-3xl shadow-sm border border-pink-100 overflow-hidden">
@@ -9,11 +96,17 @@ export default function NewStocks() {
         <div className="px-8 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-xl font-bold text-slate-800">Add Stock</h1>
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-600 rounded-xl text-xs font-bold border border-pink-100 hover:bg-pink-100 transition-colors">
+            <button 
+              onClick={() => setModalType('same')}
+              className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-600 rounded-xl text-xs font-bold border border-pink-100 hover:bg-pink-100 transition-colors"
+            >
               <Mail size={14} strokeWidth={2.5} />
               Bulk
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-600 rounded-xl text-xs font-bold border border-pink-100 hover:bg-pink-100 transition-colors">
+            <button 
+              onClick={() => setModalType('different')}
+              className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-600 rounded-xl text-xs font-bold border border-pink-100 hover:bg-pink-100 transition-colors"
+            >
               <Mail size={14} strokeWidth={2.5} />
               Bulk (Different)
             </button>
@@ -194,16 +287,53 @@ export default function NewStocks() {
               </div>
 
               {/* Slot & Pin Entries */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-100/50 text-pink-600 rounded-xl text-[10px] font-bold border border-pink-100 hover:bg-pink-100 transition-colors">
+                  <button 
+                    onClick={addSlotEntry}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
+                  >
                     <Plus size={12} strokeWidth={3} />
                     Add Slot/Pin
                   </button>
                 </div>
-                <div className="border-2 border-dashed border-pink-100 rounded-2xl p-6 flex items-center justify-center bg-white/50">
-                  <p className="text-xs font-bold text-pink-400">Click "Add Slot/Pin" to add slot & pin entries</p>
+                
+                <div className="space-y-3">
+                  {slotEntries.map((entry, index) => (
+                    <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
+                      <div className="w-20 space-y-1.5">
+                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
+                        <input 
+                          type="number" 
+                          defaultValue={entry.qty}
+                          className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
+                        <input 
+                          type="text" 
+                          placeholder="Slot"
+                          className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
+                        <input 
+                          type="text" 
+                          placeholder="Pin"
+                          className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => removeSlotEntry(entry.id)}
+                        className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <X size={16} strokeWidth={3} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -232,6 +362,22 @@ export default function NewStocks() {
 
         </div>
       </div>
+
+      <BulkModal 
+        isOpen={modalType === 'same'} 
+        onClose={() => setModalType(null)}
+        title="Add Bulk Emails (Same Email)"
+        caption="Each line creates a new stock item with the same email field"
+        type="same"
+      />
+      
+      <BulkModal 
+        isOpen={modalType === 'different'} 
+        onClose={() => setModalType(null)}
+        title="Add Bulk Emails (Different Emails)"
+        caption="Each email will be assigned to its own item. Password will be the same for all."
+        type="different"
+      />
     </div>
   );
 }

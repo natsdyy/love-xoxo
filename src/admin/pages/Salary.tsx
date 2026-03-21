@@ -1,168 +1,185 @@
+import { useState } from 'react';
 import { 
   Wallet, 
   Calendar,
-  LineChart,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Receipt
+  Receipt,
+  User,
+  DollarSign
 } from 'lucide-react';
 
 export default function Salary() {
+  const [currentMonth] = useState('March 2026');
+  const [weeklyData] = useState([
+    { week: 'March 1 - March 7', sales: '₱4,500', capital: '₱2,800', profit: '₱1,700', salary: '₱680' },
+    { week: 'March 8 - March 14', sales: '₱3,200', capital: '₱1,900', profit: '₱1,300', salary: '₱455' },
+    { week: 'March 15 - March 21', sales: '₱5,100', capital: '₱3,100', profit: '₱2,000', salary: '₱800' },
+    { week: 'March 22 - March 28', sales: '₱0', capital: '₱0', profit: '₱0', salary: '₱0' },
+    { week: 'March 29 - April 4', sales: '₱0', capital: '₱0', profit: '₱0', salary: '₱0' },
+  ]);
+
   return (
-    <div className="max-w-7xl mx-auto space-y-4 pb-12">
-      
-      {/* 1. Top Hero Banner */}
-      <div className="bg-pink-100/80 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-pink-500 text-white p-3 rounded-xl shadow-sm">
-            <Wallet size={24} />
+    <div className="p-6 pb-12">
+      {/* Top Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-[#ee6996] rounded-[2rem] p-6 shadow-lg shadow-pink-100 flex items-center gap-4 text-white">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
+            <User size={24} strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">Salary Overview</h1>
-            <p className="text-sm text-pink-600/80 font-medium">Mir's salary breakdown</p>
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">Active Partner</p>
+            <p className="text-xl font-black">Mir</p>
           </div>
         </div>
-        
-        <div className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm text-xs font-medium text-slate-600 space-y-1">
-          <p>Weekly: Sunday → Saturday</p>
-          <p>Monthly: Sum of all weekly salaries</p>
-        </div>
-      </div>
 
-      {/* 2. Current Week Section */}
-      <div className="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 bg-pink-50/30 flex items-center gap-2 border-b border-pink-50">
-          <Calendar size={16} className="text-pink-500" />
-          <h2 className="text-sm font-semibold text-slate-700">Current Week <span className="text-slate-400 font-normal">(March 15 - March 21)</span></h2>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-pink-600 text-white flex items-center justify-center font-medium text-sm shadow-sm ring-2 ring-pink-100">
-              M
-            </div>
-            <span className="font-semibold text-slate-700">Mir</span>
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-pink-50 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500">
+            <TrendingUp size={24} strokeWidth={2.5} />
           </div>
-          
-          <div className="space-y-3 pl-11">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-500 font-medium">Sales</span>
-              <span className="font-semibold text-slate-700">₱0</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-500 font-medium">Profit</span>
-              <span className="font-bold text-emerald-500">₱0</span>
-            </div>
-            <div className="w-full h-[1px] bg-slate-100 my-1"></div>
-            <div className="flex justify-between items-center text-sm pt-1">
-              <span className="text-slate-700 font-semibold">Weekly Salary</span>
-              <span className="font-bold text-pink-600 text-base">₱0</span>
-            </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Monthly Profit</p>
+            <p className="text-2xl font-black text-slate-800">₱5,000</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-pink-50 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center text-[#ee6996]">
+            <Wallet size={24} strokeWidth={2.5} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Monthly Salary</p>
+            <p className="text-2xl font-black text-slate-800">₱1,935</p>
           </div>
         </div>
       </div>
 
-      {/* 3. Monthly Salary Section */}
-      <div className="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex justify-between items-center border-b border-pink-50">
-          <div className="flex items-center gap-2">
-            <LineChart size={18} className="text-pink-500" />
-            <h2 className="text-[15px] font-semibold text-slate-700">Monthly Salary</h2>
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden mb-8">
+        {/* Header Section */}
+        <div className="px-8 py-8 border-b border-pink-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-[#4a1d4a] tracking-tight">Salary Breakdown</h1>
+            <p className="text-xs text-slate-500 font-medium italic">Detailed earnings based on weekly performance</p>
           </div>
-          <div className="flex items-center gap-3 text-sm font-semibold text-slate-600">
-            <button className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"><ChevronLeft size={16} /></button>
-            March 2026
-            <button className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"><ChevronRight size={16} /></button>
+
+          <div className="flex items-center gap-4 bg-pink-50/50 p-2 rounded-2xl">
+            <button className="p-2 hover:bg-white rounded-xl text-[#ee6996] transition-all shadow-sm">
+              <ChevronLeft size={16} strokeWidth={3} />
+            </button>
+            <span className="text-xs font-black text-[#ee6996] uppercase tracking-widest">{currentMonth}</span>
+            <button className="p-2 hover:bg-white rounded-xl text-[#ee6996] transition-all shadow-sm">
+              <ChevronRight size={16} strokeWidth={3} />
+            </button>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-2 text-pink-500 font-semibold text-sm">
-              <TrendingUp size={16} />
-              Mir's Weekly Breakdown
-            </div>
-            <div className="text-pink-500 font-bold text-sm">
-              Monthly Total: ₱0
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-slate-600">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-500 font-medium">
-                  <th className="text-left py-3 font-semibold pb-4">Week</th>
-                  <th className="text-right py-3 font-semibold pb-4">Sales</th>
-                  <th className="text-right py-3 font-semibold pb-4">Capital</th>
-                  <th className="text-right py-3 font-semibold pb-4">Profit</th>
-                  <th className="text-right py-3 font-semibold pb-4 text-pink-600">Salary</th>
+        {/* Table Area */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#fff9fb]">
+                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Week Period</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Gross Sales</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Total Capital</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Net Profit</th>
+                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-right">Partner Salary</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-pink-50">
+              {weeklyData.map((data, idx) => (
+                <tr key={idx} className="hover:bg-pink-50/10 transition-colors group">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996]">
+                        <Calendar size={14} strokeWidth={2.5} />
+                      </div>
+                      <span className="font-bold text-slate-700 text-sm">{data.week}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-center">
+                    <span className="text-xs font-bold text-slate-400">{data.sales}</span>
+                  </td>
+                  <td className="px-6 py-5 text-center">
+                    <span className="text-xs font-bold text-slate-400">{data.capital}</span>
+                  </td>
+                  <td className="px-6 py-5 text-center">
+                    <span className="text-sm font-black text-emerald-500">{data.profit}</span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <span className="text-sm font-black text-[#ee6996] bg-pink-50 px-3 py-1 rounded-lg">
+                      {data.salary}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="font-medium">
-                {['March 1 - March 7', 'March 8 - March 14', 'March 15 - March 21', 'March 22 - March 28', 'March 29 - April 4'].map((week, idx) => (
-                  <tr key={idx} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 text-slate-500 relative pl-4">
-                      <span className="absolute left-0 text-slate-300">•</span>
-                      {week}
-                    </td>
-                    <td className="text-right py-3">₱0</td>
-                    <td className="text-right py-3">₱0</td>
-                    <td className="text-right py-3 text-emerald-500 font-bold">₱0</td>
-                    <td className="text-right py-3 text-pink-500 font-bold">₱0</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-pink-50/50 font-bold border-t-2 border-pink-100">
-                  <td className="py-4 text-slate-700 pl-4 rounded-bl-xl">Monthly Total (March)</td>
-                  <td className="text-right py-4">₱0</td>
-                  <td className="text-right py-4 text-slate-400">—</td>
-                  <td className="text-right py-4 text-emerald-500">₱0</td>
-                  <td className="text-right py-4 text-pink-600 rounded-br-xl">₱0</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-pink-50/30">
+                <td colSpan={3} className="px-8 py-6">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monthly Calculated Total</p>
+                </td>
+                <td className="px-6 py-6 text-center">
+                   <p className="text-lg font-black text-emerald-600">₱5,000</p>
+                </td>
+                <td className="px-8 py-6 text-right">
+                   <p className="text-lg font-black text-[#ee6996]">₱1,935</p>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
-      {/* 4. Salary Rates Section */}
-      <div className="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden p-6 space-y-6">
-        <div className="flex items-center gap-2">
-          <Receipt size={18} className="text-pink-500" />
-          <h2 className="text-[15px] font-semibold text-slate-800">Salary Rates</h2>
+      {/* Formula & Rates */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-[2rem] p-8 border border-pink-50 shadow-sm">
+           <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center text-[#ee6996]">
+                <Receipt size={20} />
+              </div>
+              <h3 className="font-black text-[#4a1d4a] uppercase tracking-tight text-sm">Calculation Logic</h3>
+           </div>
+           
+           <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                 <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-[10px] font-bold text-slate-400 border border-slate-200">1</div>
+                 <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                   <span className="text-slate-700 font-bold">Net Profit</span> is calculated by subtracting total capital from gross sales for each transaction.
+                 </p>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                 <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-[10px] font-bold text-slate-400 border border-slate-200">2</div>
+                 <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                   <span className="text-pink-600 font-bold">Weekly Salary</span> is a percentage of the total weekly net profit based on the tiers below.
+                 </p>
+              </div>
+           </div>
         </div>
 
-        <div className="text-xs font-medium space-y-1.5 text-slate-500 bg-slate-50 p-4 rounded-xl border border-slate-100">
-          <p><span className="text-slate-700 font-bold">Formula:</span> Profit = Sales - Capital <span className="px-2 text-pink-400">→</span> Salary = Profit × Percentage (per week)</p>
-          <p><span className="text-slate-700 font-bold">Monthly Salary</span> = Sum of all weekly salaries in the month</p>
-        </div>
+        <div className="bg-[#4a1d4a] rounded-[2rem] p-8 shadow-xl shadow-purple-900/10 text-white">
+           <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-pink-300">
+                <DollarSign size={20} />
+              </div>
+              <h3 className="font-black text-white uppercase tracking-tight text-sm">Commission Tiers</h3>
+           </div>
 
-        <div className="bg-pink-50/50 border border-pink-100 rounded-xl p-5">
-          <h3 className="text-sm font-bold text-pink-600 mb-4">Mir's Rates</h3>
-          
-          <div className="space-y-3 font-medium text-sm">
-            <div className="flex justify-between items-center text-slate-600">
-              <span>Below ₱499</span>
-              <span className="text-pink-500 font-bold">20%</span>
-            </div>
-            <div className="flex justify-between items-center text-slate-600">
-              <span>₱500 - ₱999</span>
-              <span className="text-pink-500 font-bold">30%</span>
-            </div>
-            <div className="flex justify-between items-center text-slate-600">
-              <span>₱1,000 - ₱1,499</span>
-              <span className="text-pink-500 font-bold">35%</span>
-            </div>
-            <div className="flex justify-between items-center text-slate-600">
-              <span>₱1,500+</span>
-              <span className="text-pink-500 font-bold">40%</span>
-            </div>
-          </div>
+           <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Below ₱500', rate: '20%' },
+                { label: '₱500 - ₱999', rate: '30%' },
+                { label: '₱1,000 - ₱1,499', rate: '35%' },
+                { label: '₱1,500+', rate: '40%' }
+              ].map((tier, i) => (
+                <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between items-center group hover:bg-white/10 transition-all">
+                   <span className="text-[10px] font-bold text-purple-200 uppercase tracking-widest">{tier.label}</span>
+                   <span className="text-sm font-black text-pink-300">{tier.rate}</span>
+                </div>
+              ))}
+           </div>
         </div>
       </div>
-
     </div>
   );
 }
