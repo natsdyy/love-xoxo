@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Eye, Check, Clock, ChevronRight, X, Info, Search } from 'lucide-react';
+import { Package, ShoppingCart, Eye, Check, Clock, ChevronRight, Info } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { subscribeToStocks, updateStock } from '../../lib/stockService';
 import { addSale, subscribeToSales, type Sale } from '../../lib/transactionService';

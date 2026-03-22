@@ -1,25 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, LayoutGrid, List as ListIcon, Plus, Edit2, Trash2, ExternalLink, X, Save } from 'lucide-react';
-import { subscribeToStocks, updateStock, deleteStock } from '../../lib/stockService';
+import { subscribeToStocks, updateStock, deleteStock, type Stock } from '../../lib/stockService';
 import { toast } from 'react-toastify';
 
-interface Stock {
-  id: string;
-  service: string;
-  serviceCategory: string;
-  duration: string;
-  email: string;
-  password: string;
-  category: string;
-  quantity: number;
-  price: number;
-  devices?: string[];
-  slots?: Array<{ slot: string; pin: string }>;
-  notes?: string;
-  status: string;
-  createdBy?: string;
-  createdAt?: any;
-}
 
 interface StockEntry {
   id: string;
@@ -42,7 +25,6 @@ export default function ListStocks() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [stocks, setStocks] = useState<StockEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
 
   const categories = ['entertainment', 'educational', 'editing', 'other services'];
 
@@ -54,7 +36,7 @@ export default function ListStocks() {
       const transformedStocks: StockEntry[] = firebaseStocks.map(stock => {
         const createdDate = stock.createdAt?.toDate?.() || new Date();
         return {
-          id: stock.id,
+          id: stock.id || '',
           service: stock.service,
           duration: stock.duration,
           email: stock.email,
@@ -92,13 +74,11 @@ export default function ListStocks() {
   // Handle Edit
   const handleEdit = (stock: StockEntry) => {
     setEditingStock({ ...stock });
-    setIsEditing(true);
   };
 
   const handleEditSave = async () => {
     if (!editingStock) return;
     
-    setIsEditing(true);
     try {
       // Parse price from display format
       const priceStr = editingStock.price.replace('₱', '').replace(/,/g, '');
@@ -126,7 +106,7 @@ export default function ListStocks() {
         autoClose: 2000,
       });
     } finally {
-      setIsEditing(false);
+      // setLoading(false);
     }
   };
 
@@ -144,7 +124,6 @@ export default function ListStocks() {
     if (!deleteConfirmId) return;
     
     try {
-      setIsEditing(true);
       await deleteStock(deleteConfirmId);
       
       toast.success('Stock deleted successfully!', {
@@ -159,7 +138,6 @@ export default function ListStocks() {
         autoClose: 2000,
       });
     } finally {
-      setIsEditing(false);
     }
   };
 
