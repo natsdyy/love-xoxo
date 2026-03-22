@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Calendar, Loader2, Trash2, ChevronDown, Tag } from 'lucide-react';
+import { Plus, X, Loader2, Trash2, ChevronDown, Tag } from 'lucide-react';
 import { subscribeToPrices, addPrice, deletePrice, type PriceItem } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
 

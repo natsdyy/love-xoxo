@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Search, Filter, CheckCircle2, XCircle, User, Loader2, Info } from 'lucide-react';
+import { Clock, Search, Filter, CheckCircle2, XCircle, User, Loader2 } from 'lucide-react';
 import { subscribeToSales, updateSale, deleteSale, type Sale } from '../../lib/transactionService';
 import { updateStock } from '../../lib/stockService';
 import { toast } from 'react-toastify';

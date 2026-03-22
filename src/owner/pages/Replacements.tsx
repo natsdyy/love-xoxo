@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCcw, Search, Filter, User, Clock, CheckCircle2, AlertCircle, Loader2, Plus, X, ChevronDown } from 'lucide-react';
+import { RefreshCcw, Search, CheckCircle2, AlertCircle, Loader2, Plus, X, ChevronDown } from 'lucide-react';
 import { subscribeToReplacements, addReplacement, type Replacement } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
 

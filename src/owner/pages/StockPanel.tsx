@@ -1,26 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, X, Check, Info } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { subscribeToStocks, updateStock } from '../../lib/stockService';
+import { subscribeToStocks, updateStock, type Stock } from '../../lib/stockService';
 import { addSale } from '../../lib/transactionService';
 
-interface Stock {
-  id: string;
-  service: string;
-  serviceCategory: string;
-  duration: string;
-  email: string;
-  password: string;
-  category: string;
-  quantity: number;
-  price: number;
-  devices?: string[];
-  slots?: Array<{ slot: string; pin: string }>;
-  notes?: string;
-  status: string;
-  createdBy?: string;
-  createdAt?: any;
-}
 
 export default function StockPanel() {
   const username = localStorage.getItem('username') || 'unknown';
@@ -62,18 +45,22 @@ export default function StockPanel() {
 
       // Add sale record
       await addSale({
-        stockId: selectedStock.id,
+        stockId: (selectedStock.id as string) || '',
         service: selectedStock.service,
+        serviceCategory: selectedStock.serviceCategory,
         email: selectedStock.email,
-        category: selectedStock.category,
-        originalPrice: selectedStock.price,
-        salePrice: saleAmount,
-        soldBy: username,
+        buyerName: 'Owner Sale', // Or some other source if owner panel doesn't have a buyer name field
+        quantity: 1,
+        price: selectedStock.price,
+        totalPrice: saleAmount,
+        adminName: username,
+        status: 'approved',
         notes: saleNotes,
+        createdAt: new Date(),
       });
 
       // Update stock status to sold
-      await updateStock(selectedStock.id, {
+      await updateStock(selectedStock.id || '', {
         status: 'sold',
       });
 
