@@ -1,0 +1,68 @@
+// FIRESTORE SECURITY RULES WITH AUTHENTICATION
+// Add these rules to your Firebase Console > Firestore Database > Rules tab
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow write to users collection (for login tracking and user data)
+    // Only authenticated users can read/write
+    match /users/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Inventory collection - authenticated users only
+    match /inventory/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Sales collection - authenticated users only
+    match /sales/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Refunds collection - authenticated users only
+    match /refunds/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Admin collection - authenticated users only
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Owner collection - authenticated users only
+    match /owner/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+  }
+}
+
+// ============================================
+// STEPS TO APPLY THESE RULES:
+// ============================================
+// 1. Go to: https://console.firebase.google.com/
+// 2. Select your project (lovexoxo)
+// 3. Click "Firestore Database" in the left sidebar
+// 4. Click the "Rules" tab at the top
+// 5. Replace ALL content with the rules above
+// 6. Click "Publish" button
+// 7. Wait for confirmation (usually takes 1-2 minutes)
+// 8. Refresh your app at http://localhost:5173/
+
+// ============================================
+// WHAT THESE RULES DO:
+// ============================================
+// - Only authenticated users can read and write
+// - More secure than open access
+// - Uses Firebase Authentication tokens
+// 
+// COLLECTIONS CREATED:
+// - users: Stores all login records for admins and owner
+// - inventory: Stores all stock items
+// - sales: Stores all sales transactions
+// - refunds: Stores all refund records
+// - admin: Admin-specific data
+// - owner: Owner-specific data
+

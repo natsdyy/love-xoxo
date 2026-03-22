@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Mail, ChevronDown, X } from 'lucide-react';
+import { addInventoryItem } from '../../lib/firebaseService';
 
 interface BulkModalProps {
   isOpen: boolean;
@@ -71,11 +72,19 @@ function BulkModal({ isOpen, onClose, title, caption, type }: BulkModalProps) {
 }
 
 export default function NewStocks() {
+  const username = localStorage.getItem('username') || 'unknown';
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [modalType, setModalType] = useState<'same' | 'different' | null>(null);
   const [category, setCategory] = useState('');
   const [service, setService] = useState('');
   const [duration, setDuration] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [itemCategory, setItemCategory] = useState('');
+  const [devices, setDevices] = useState('');
+  const [price, setPrice] = useState('');
+  const [notes, setNotes] = useState('');
   const [slotEntries, setSlotEntries] = useState([
     { id: 1, qty: 1, slot: '', pin: '' },
     { id: 2, qty: 1, slot: '', pin: '' }
@@ -97,6 +106,52 @@ export default function NewStocks() {
 
   const removeSlotEntry = (id: number) => {
     setSlotEntries(slotEntries.filter(entry => entry.id !== id));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!category || !service || !duration || !email || !password || !itemCategory || !devices || !price) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await addInventoryItem({
+        supplierName: 'Owner Stock',
+        service: service,
+        duration: duration,
+        category: itemCategory,
+        price: parseFloat(price),
+        quantity: parseInt(devices),
+        status: 'Received',
+        createdBy: username
+      });
+
+      setSuccessMessage('✅ Stock added successfully!');
+      // Reset form
+      setCategory('');
+      setService('');
+      setDuration('');
+      setEmail('');
+      setPassword('');
+      setItemCategory('');
+      setDevices('');
+      setPrice('');
+      setNotes('');
+      setSlotEntries([
+        { id: 1, qty: 1, slot: '', pin: '' },
+        { id: 2, qty: 1, slot: '', pin: '' }
+      ]);
+
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      alert('Failed to add stock. Check console for details.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const services: Record<string, string[]> = {
@@ -292,6 +347,8 @@ export default function NewStocks() {
               <input 
                 type="text" 
                 placeholder="Enter email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
               />
             </div>
@@ -305,6 +362,8 @@ export default function NewStocks() {
             <input 
               type="password" 
               placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
             />
           </div>

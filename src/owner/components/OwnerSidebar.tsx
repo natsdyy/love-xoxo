@@ -15,6 +15,7 @@ import {
   Repeat, 
   UserCheck,
   Wallet,
+  Users,
   X,
   ChevronRight
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/owner' },
+  { icon: Users, label: 'Users', path: '/owner/users' },
   { icon: PackagePlus, label: 'New Stocks', path: '/owner/new-stocks' },
   { icon: Package, label: 'Stock Panel', path: '/owner/stock' },
   { icon: List, label: 'List of Stocks', path: '/owner/list' },
@@ -37,6 +39,7 @@ const navItems = [
   { icon: Repeat, label: 'Replacement', path: '/owner/replacement' },
   { icon: UserCheck, label: 'Approval', path: '/owner/approval' },
   { icon: Wallet, label: 'Salary', path: '/owner/salary' },
+  
 ];
 
 interface SidebarProps {

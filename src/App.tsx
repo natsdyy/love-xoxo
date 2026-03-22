@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import DashboardLayout from './admin/layouts/DashboardLayout';
 import AdminDashboard from './admin/pages/Dashboard';
 import AdminStockPanel from './admin/pages/StockPanel';
@@ -28,6 +30,7 @@ import OwnerMonitoring from './owner/pages/Monitoring';
 import OwnerReplacements from './owner/pages/Replacements';
 import OwnerSalary from './owner/pages/Salary';
 import OwnerPending from './owner/pages/Pending';
+import OwnerUsers from './owner/pages/Users';
 
 // Auth Imports
 import Login from './pages/Login';
@@ -50,6 +53,18 @@ const ProtectedRoute = ({ children, allowedRole }: { children: React.ReactNode, 
 function App() {
   return (
     <BrowserRouter>
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       <Routes>
         <Route path="/login" element={<Login />} />
         
@@ -93,6 +108,7 @@ function App() {
           <Route path="replacement" element={<OwnerReplacements />} />
           <Route path="approval" element={<OwnerApproval />} />
           <Route path="salary" element={<OwnerSalary />} />
+          <Route path="users" element={<OwnerUsers />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/login" replace />} />

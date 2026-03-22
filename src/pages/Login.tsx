@@ -1,27 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { validateCredentials } from '../lib/auth';
+import { initializeFirebaseAuth, storeUserSession, signInUserWithEmailPassword } from '../lib/firebaseAuth';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Initialize Firebase Auth on component mount
+  useEffect(() => {
+    const initAuth = async () => {
+      await initializeFirebaseAuth();
+    };
+    initAuth();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    const user = validateCredentials(username, password);
+    try {
+      const user = validateCredentials(username, password);
 
-    if (user) {
-      localStorage.setItem('userRole', user.role);
-      localStorage.setItem('username', username);
-      navigate(user.role === 'admin' ? '/admin' : '/owner');
-    } else {
-      setError('Invalid username or password');
+      if (user) {
+        // Sign in to Firebase Authentication
+        await signInUserWithEmailPassword(username, password);
+        
+        // Store user session in Firestore
+        await storeUserSession(username, user.role, user.displayName);
+        
+        // Store in localStorage for quick access
+        localStorage.setItem('userRole', user.role);
+        localStorage.setItem('username', username);
+        
+        navigate(user.role === 'admin' ? '/admin' : '/owner');
+      } else {
+        setError('Invalid username or password');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -94,9 +120,14 @@ export default function Login() {
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] text-white py-4 rounded-2xl font-bold text-md shadow-xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99] mt-2"
+            disabled={isLoading}
+            className={`w-full text-white py-4 rounded-2xl font-bold text-md shadow-xl shadow-pink-200/50 transition-all mt-2 ${
+              isLoading 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] hover:scale-[1.01] active:scale-[0.99]'
+            }`}
           >
-            Sign In
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 

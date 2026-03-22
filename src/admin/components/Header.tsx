@@ -16,7 +16,7 @@ const routeNames: Record<string, string> = {
   '/owner': 'Dashboard',
   '/owner/new-stocks': 'New Stocks',
   '/owner/stock': 'Stock Panel',
-  '/owner/list-stocks': 'List of Stocks',
+  '/owner/list': 'List of Stocks',
   '/owner/inventory': 'Inventory',
   '/owner/sold': 'Sold',
   '/owner/pending': 'Pending',
@@ -29,6 +29,7 @@ const routeNames: Record<string, string> = {
   '/owner/replacement': 'Replacements',
   '/owner/approval': 'Approval',
   '/owner/salary': 'Salary',
+  '/owner/users': 'Users & Activity',
 };
 
 interface HeaderProps {
