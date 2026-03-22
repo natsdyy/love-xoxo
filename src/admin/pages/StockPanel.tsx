@@ -1,28 +1,109 @@
-import { useState } from 'react';
-import { Package, ShoppingCart, Eye, Check, Clock, Upload, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, ShoppingCart, Eye, Check, Clock, Upload, ChevronRight, X, Info, Search } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { subscribeToStocks, updateStock } from '../../lib/stockService';
+import { addSale, subscribeToSales, type Sale } from '../../lib/transactionService';
 
-interface AvailableStock {
+interface Stock {
   id: string;
   service: string;
+  serviceCategory: string;
+  duration: string;
+  email: string;
+  password: string;
   category: string;
-  qty: number;
-  price: string;
+  quantity: number;
+  price: number;
+  devices?: string[];
+  slots?: Array<{ slot: string; pin: string }>;
+  notes?: string;
+  status: string;
+  createdBy?: string;
+  createdAt?: any;
 }
 
 export default function StockPanel() {
+  const username = localStorage.getItem('username') || 'admin';
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [selectedStockId, setSelectedStockId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [salePrice, setSalePrice] = useState('');
+  const [buyerName, setBuyerName] = useState('');
+  const [saleNotes, setSaleNotes] = useState('');
   const [saleStatus, setSaleStatus] = useState<'SOLD' | 'RESERVED'>('SOLD');
-  
-  // Dummy data for visibility
-  const [availableStocks] = useState<AvailableStock[]>([
-    { id: '1', service: 'Netflix', category: 'Solo Profile', qty: 12, price: '₱149' },
-    { id: '2', service: 'Disney+', category: 'Shared', qty: 5, price: '₱2,490' },
-    { id: '3', service: 'Canva Pro', category: 'Solo Profile', qty: 28, price: '₱499' },
-  ]);
 
-  const [recentTransactions] = useState([
-    { id: '1', buyer: 'Juan D.', service: 'Netflix', status: 'SOLD', date: '2 mins ago', price: '₱149' },
-    { id: '2', buyer: 'Maria C.', service: 'Canva Pro', status: 'RESERVED', date: '15 mins ago', price: '₱499' },
-  ]);
+  // Load data from Firestore
+  useEffect(() => {
+    setLoading(true);
+    const unsubStocks = subscribeToStocks((firebaseStocks) => {
+      // Filter for available stocks for the selling form
+      const available = (firebaseStocks as Stock[]).filter(s => s.status === 'available');
+      setStocks(available);
+      setLoading(false);
+    });
+
+    const unsubSales = subscribeToSales((firebaseSales) => {
+      setSales(firebaseSales.slice(0, 5)); // Just show last 5
+    });
+
+    return () => {
+      unsubStocks();
+      unsubSales();
+    };
+  }, []);
+
+  const selectedStock = stocks.find(s => s.id === selectedStockId);
+
+  const handleMarkAsSold = async () => {
+    if (!selectedStock || !salePrice || !buyerName) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const saleAmount = parseFloat(salePrice);
+
+      // Add sale record
+      await addSale({
+        stockId: selectedStock.id,
+        service: selectedStock.service,
+        serviceCategory: selectedStock.serviceCategory,
+        email: selectedStock.email,
+        buyerName: buyerName,
+        quantity: 1, // Default to 1 for manual stock panel sale
+        price: selectedStock.price,
+        totalPrice: saleAmount,
+        adminName: username,
+        status: saleStatus === 'SOLD' ? 'approved' : 'pending',
+        notes: saleNotes,
+        createdAt: new Date(),
+      });
+
+      // Update stock status
+      await updateStock(selectedStock.id, {
+        status: saleStatus === 'SOLD' ? 'sold' : 'reserved',
+      });
+
+      toast.success(saleStatus === 'SOLD' ? '✅ Stock marked as sold!' : '⏳ Stock reserved!');
+
+      // Reset form
+      setSelectedStockId('');
+      setSalePrice('');
+      setBuyerName('');
+      setSaleNotes('');
+      setSaleStatus('SOLD');
+    } catch (error) {
+      console.error('Error processing sale:', error);
+      toast.error('❌ Failed to process sale');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const categories = ['entertainment', 'educational', 'editing', 'other services'];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -40,24 +121,31 @@ export default function StockPanel() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {availableStocks.map((stock) => (
-              <div key={stock.id} className="bg-pink-50/30 rounded-2xl p-4 border border-pink-50 flex items-center justify-between group hover:bg-pink-50 transition-colors cursor-pointer">
-                <div>
-                  <p className="text-[10px] font-black text-[#ee6996] uppercase tracking-widest mb-1">{stock.service}</p>
-                  <p className="text-sm font-bold text-slate-700">{stock.qty} items left</p>
+            {categories.map(cat => {
+              const count = stocks.filter(s => s.serviceCategory === cat).length;
+              if (count === 0) return null;
+              return (
+                <div key={cat} className="bg-pink-50/30 rounded-2xl p-4 border border-pink-50 flex items-center justify-between group hover:bg-pink-50 transition-colors">
+                  <div>
+                    <p className="text-[10px] font-black text-[#ee6996] uppercase tracking-widest mb-1">{cat}</p>
+                    <p className="text-sm font-bold text-slate-700">{count} services available</p>
+                  </div>
                 </div>
-                <div className="bg-white p-2 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ChevronRight size={14} className="text-[#ee6996]" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            {stocks.length === 0 && !loading && (
+              <p className="text-sm text-slate-400 italic col-span-3 text-center py-4">No available stocks</p>
+            )}
+            {loading && (
+              <p className="text-sm text-pink-400 animate-pulse col-span-3 text-center py-4 font-bold uppercase tracking-widest">Loading...</p>
+            )}
           </div>
         </div>
         
-        <div className="px-8 py-5 bg-[#fff9fb] border-t border-pink-50 flex justify-between items-center transition-all">
+        <div className="px-8 py-5 bg-[#fff9fb] border-t border-pink-50 flex justify-between items-center">
           <span className="text-xs font-black text-[#ee6996] uppercase tracking-widest">Total Available Stock</span>
           <span className="text-sm font-black text-slate-700">
-            {availableStocks.reduce((acc, curr) => acc + curr.qty, 0)} items
+            {stocks.length} items
           </span>
         </div>
       </div>
@@ -71,17 +159,73 @@ export default function StockPanel() {
           <h2 className="text-xl font-bold text-[#4a1d4a]">Sell Stock</h2>
         </div>
 
-        <form className="space-y-6">
+        <div className="space-y-6">
           {/* Select Stock */}
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Stock Email</label>
-            <select className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer shadow-sm">
-              <option value="" disabled selected>Select stock...</option>
-              {availableStocks.map(stock => (
-                <option key={stock.id} value={stock.id}>{stock.service} - {stock.category} ({stock.price})</option>
-              ))}
-            </select>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Stock Account</label>
+            <div className="relative">
+              <select 
+                value={selectedStockId}
+                onChange={(e) => {
+                  setSelectedStockId(e.target.value);
+                  const s = stocks.find(x => x.id === e.target.value);
+                  if (s) setSalePrice(s.price.toString());
+                }}
+                className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer shadow-sm"
+              >
+                <option value="">Select a stock to sell...</option>
+                {categories.map(cat => {
+                  const catStocks = stocks.filter(s => s.serviceCategory === cat);
+                  if (catStocks.length === 0) return null;
+                  return (
+                    <optgroup key={cat} label={cat.toUpperCase()}>
+                      {catStocks.map(stock => (
+                        <option key={stock.id} value={stock.id}>
+                          {stock.service} - {stock.category} ({stock.email})
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none rotate-90" size={16} />
+            </div>
           </div>
+
+          {selectedStock && (
+            <div className="bg-pink-50/20 rounded-2xl p-6 border border-pink-100 flex flex-col md:flex-row gap-6 animate-in fade-in duration-300">
+               <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-white border border-pink-100 flex items-center justify-center text-[#ee6996]">
+                      <Info size={16} />
+                    </div>
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">Stock Info</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Email</p>
+                      <p className="text-xs font-bold text-slate-600 truncate">{selectedStock.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Price</p>
+                      <p className="text-xs font-black text-[#ee6996]">₱{selectedStock.price}</p>
+                    </div>
+                  </div>
+               </div>
+               <div className="w-px bg-pink-100 hidden md:block"></div>
+               <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-white border border-pink-100 flex items-center justify-center text-[#ee6996]">
+                      <Check size={16} />
+                    </div>
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">Credentials</span>
+                  </div>
+                  <p className="text-xs font-mono text-slate-500 bg-white/50 p-2 rounded-lg border border-pink-50">
+                    {selectedStock.password}
+                  </p>
+               </div>
+            </div>
+          )}
 
           {/* Sale Status */}
           <div className="space-y-2">
@@ -93,7 +237,7 @@ export default function StockPanel() {
                 className={`flex items-center gap-2 px-8 py-3 rounded-2xl border-2 font-black text-xs tracking-widest uppercase transition-all shadow-sm ${
                   saleStatus === 'SOLD' 
                   ? 'border-emerald-400 bg-emerald-50 text-emerald-600' 
-                  : 'border-pink-50 bg-white text-slate-400 grayscale'
+                  : 'border-pink-50 bg-white text-slate-400'
                 }`}
               >
                 <Check size={16} strokeWidth={4} />
@@ -114,57 +258,74 @@ export default function StockPanel() {
             </div>
           </div>
 
-          {/* Buyer Name */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Buyer Name */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Buyer Name <span className="text-pink-400">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Name or Telegram"
+                value={buyerName}
+                onChange={(e) => setBuyerName(e.target.value)}
+                className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] placeholder-slate-300 text-sm font-bold text-slate-700 shadow-sm"
+              />
+            </div>
+
+            {/* Sale Price */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Final Sale Price <span className="text-pink-400">*</span>
+              </label>
+              <input
+                type="number"
+                placeholder="₱0.00"
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] placeholder-slate-300 text-sm font-bold text-slate-700 shadow-sm"
+              />
+            </div>
+          </div>
+
+          {/* Sale Notes */}
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-              Buyer Name / Username <span className="text-pink-400">*</span>
-            </label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notes</label>
             <input
               type="text"
-              placeholder="Enter buyer's username or name"
+              placeholder="Any additional details..."
+              value={saleNotes}
+              onChange={(e) => setSaleNotes(e.target.value)}
               className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] placeholder-slate-300 text-sm font-bold text-slate-700 shadow-sm"
             />
-          </div>
-
-          {/* Bulk Order Quantity */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-              Bulk Order Quantity <span className="font-medium text-slate-300 lowercase">(optional)</span>
-            </label>
-            <input
-              type="number"
-              placeholder="e.g., 5"
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-pink-50 focus:outline-none focus:border-[#ee6996] placeholder-slate-300 text-sm font-bold text-slate-700 shadow-sm"
-            />
-          </div>
-
-          {/* Receipt / Screenshot */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-              Receipt / Screenshot <span className="text-pink-400">*</span>
-            </label>
-            
-            <div className="w-full border-2 border-dashed border-pink-100 rounded-2xl p-8 hover:bg-pink-50/50 transition-colors cursor-pointer group flex flex-col items-center justify-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white border border-pink-50 flex items-center justify-center text-[#ee6996] shadow-sm group-hover:scale-110 transition-transform">
-                <Upload size={24} />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-bold text-slate-700">Click to upload receipt</p>
-                <p className="text-[10px] text-slate-400 font-medium italic mt-0.5">PNG, JPG up to 5MB</p>
-              </div>
-            </div>
           </div>
 
           {/* Submit Button */}
           <div className="pt-4">
             <button
               type="button"
-              className="w-full md:w-auto px-10 py-4 rounded-2xl bg-[#ee6996] hover:bg-[#d55a84] text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-pink-200 active:scale-95"
+              onClick={handleMarkAsSold}
+              disabled={submitting || !selectedStockId}
+              className={`w-full md:w-auto px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg flex items-center justify-center gap-3 ${
+                submitting || !selectedStockId
+                ? 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
+                : 'bg-[#ee6996] hover:bg-[#d55a84] text-white shadow-pink-200'
+              }`}
             >
-              Submit Sale
+              {submitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={4} />
+                  Complete Transaction
+                </>
+              )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
 
       {/* 3. Recent Transactions Card */}
@@ -173,35 +334,37 @@ export default function StockPanel() {
           <div className="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center text-[#ee6996]">
             <Eye size={20} strokeWidth={2.5} />
           </div>
-          <h2 className="text-xl font-bold text-[#4a1d4a]">Your Recent Transactions</h2>
+          <h2 className="text-xl font-bold text-[#4a1d4a]">Recent Transactions</h2>
         </div>
         
         <div className="space-y-3">
-          {recentTransactions.map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-pink-50/50 hover:bg-white hover:shadow-md transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white border border-pink-50 flex items-center justify-center text-[#ee6996] font-bold text-xs ring-2 ring-pink-50">
-                  {tx.service.charAt(0)}
+          {sales.length === 0 ? (
+            <p className="text-center py-8 text-slate-400 text-sm italic">No recent sales found</p>
+          ) : (
+            sales.map((sale) => (
+              <div key={sale.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-pink-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white border border-pink-50 flex items-center justify-center text-[#ee6996] font-bold text-xs">
+                    {sale.service.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{sale.buyerName}</p>
+                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{sale.service} • ₱{sale.totalPrice}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{tx.buyer}</p>
-                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{tx.service} • {tx.price}</p>
+                <div className="text-right">
+                  <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
+                    sale.status === 'approved' ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-blue-500'
+                  }`}>
+                    {sale.status === 'approved' ? 'SOLD' : 'RESERVED'}
+                  </span>
                 </div>
               </div>
-              <div className="text-right">
-                <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
-                  tx.status === 'SOLD' ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-blue-500'
-                }`}>
-                  {tx.status}
-                </span>
-                <p className="text-[10px] text-slate-400 mt-1 italic">{tx.date}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
     </div>
   );
 }
-

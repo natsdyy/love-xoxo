@@ -1,5 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, LayoutGrid, List as ListIcon, Plus, Edit2, Trash2, ExternalLink, X, Save } from 'lucide-react';
+import { subscribeToStocks, updateStock, deleteStock } from '../../lib/stockService';
+import { toast } from 'react-toastify';
+
+interface Stock {
+  id: string;
+  service: string;
+  serviceCategory: string;
+  duration: string;
+  email: string;
+  password: string;
+  category: string;
+  quantity: number;
+  price: number;
+  devices?: string[];
+  slots?: Array<{ slot: string; pin: string }>;
+  notes?: string;
+  status: string;
+  createdBy?: string;
+  createdAt?: any;
+}
 
 interface StockEntry {
   id: string;
@@ -20,50 +40,47 @@ export default function ListStocks() {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [editingStock, setEditingStock] = useState<StockEntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [stocks, setStocks] = useState<StockEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
 
-  const [stocks, setStocks] = useState<StockEntry[]>([
-    {
-      id: '1',
-      service: 'Netflix',
-      duration: '1 Month',
-      email: 'netflix-user1@xoxo.com',
-      password: 'password123',
-      category: 'Solo Profile',
-      devices: '1 Device',
-      price: '₱149',
-      qty: 5,
-      dateTime: '2024-03-21 14:30',
-      serviceCategory: 'Entertainment'
-    },
-    {
-      id: '2',
-      service: 'Disney+',
-      duration: '12 Months',
-      email: 'disney-premium@xoxo.com',
-      password: 'disney-pass-456',
-      category: 'Shared',
-      devices: '4 Devices',
-      price: '₱2,490',
-      qty: 2,
-      dateTime: '2024-03-21 15:00',
-      serviceCategory: 'Entertainment'
-    },
-    {
-      id: '3',
-      service: 'Canva Pro',
-      duration: 'Lifetime',
-      email: 'design-pro@xoxo.com',
-      password: 'canva-life-top',
-      category: 'Solo Profile',
-      devices: 'Unlimited',
-      price: '₱499',
-      qty: 15,
-      dateTime: '2024-03-21 10:15',
-      serviceCategory: 'Editing'
-    }
-  ]);
+  const categories = ['entertainment', 'educational', 'editing', 'other services'];
 
-  const categories = ['Entertainment', 'Educational', 'Editing', 'Other Services'];
+  // Set up real-time listener from Firestore
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = subscribeToStocks((firebaseStocks: Stock[]) => {
+      // Transform Firestore stocks to StockEntry format
+      const transformedStocks: StockEntry[] = firebaseStocks.map(stock => {
+        const createdDate = stock.createdAt?.toDate?.() || new Date();
+        return {
+          id: stock.id,
+          service: stock.service,
+          duration: stock.duration,
+          email: stock.email,
+          password: stock.password,
+          category: stock.category,
+          devices: stock.devices?.join(', ') || '',
+          price: `₱${stock.price.toFixed(2)}`,
+          qty: stock.quantity,
+          dateTime: createdDate.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          }),
+          serviceCategory: stock.serviceCategory
+        };
+      });
+      
+      setStocks(transformedStocks);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Filter by search query
   const filteredStocks = stocks.filter(s =>
@@ -75,12 +92,42 @@ export default function ListStocks() {
   // Handle Edit
   const handleEdit = (stock: StockEntry) => {
     setEditingStock({ ...stock });
+    setIsEditing(true);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!editingStock) return;
-    setStocks(prev => prev.map(s => s.id === editingStock.id ? editingStock : s));
-    setEditingStock(null);
+    
+    setIsEditing(true);
+    try {
+      // Parse price from display format
+      const priceStr = editingStock.price.replace('₱', '').replace(/,/g, '');
+      const priceNum = parseFloat(priceStr);
+
+      await updateStock(editingStock.id, {
+        service: editingStock.service,
+        duration: editingStock.duration,
+        email: editingStock.email,
+        password: editingStock.password,
+        category: editingStock.category,
+        quantity: editingStock.qty,
+        price: priceNum,
+      });
+
+      toast.success('Stock updated successfully!', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+      setEditingStock(null);
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      toast.error('Failed to update stock', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   const handleEditChange = (field: keyof StockEntry, value: string | number) => {
@@ -93,10 +140,27 @@ export default function ListStocks() {
     setDeleteConfirmId(id);
   };
 
-  const handleDeleteExecute = () => {
+  const handleDeleteExecute = async () => {
     if (!deleteConfirmId) return;
-    setStocks(prev => prev.filter(s => s.id !== deleteConfirmId));
-    setDeleteConfirmId(null);
+    
+    try {
+      setIsEditing(true);
+      await deleteStock(deleteConfirmId);
+      
+      toast.success('Stock deleted successfully!', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+      setDeleteConfirmId(null);
+    } catch (error) {
+      console.error('Error deleting stock:', error);
+      toast.error('Failed to delete stock', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   const stockToDelete = stocks.find(s => s.id === deleteConfirmId);
@@ -245,35 +309,46 @@ export default function ListStocks() {
         </div>
       </div>
 
-      {categories.map((cat) => (
-        <div key={cat} className="mb-10">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-1.5 h-6 bg-[#ee6996] rounded-full" />
-            <h2 className="text-lg font-bold text-gray-700 tracking-tight uppercase text-[12px] tracking-widest opacity-80">{cat}</h2>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full border-4 border-pink-100 border-t-[#ee6996] animate-spin mx-auto mb-4" />
+            <p className="text-slate-500 text-sm font-medium">Loading stocks...</p>
           </div>
+        </div>
+      ) : (
+        <>
+          {categories.map((cat) => (
+            <div key={cat} className="mb-10">
+              <div className="flex items-center gap-3 mb-4 px-2">
+                <div className="w-1.5 h-6 bg-[#ee6996] rounded-full" />
+                <h2 className="text-lg font-bold text-gray-700 tracking-tight uppercase text-[12px] tracking-widest opacity-80">
+                  {cat === 'other services' ? 'OTHER SERVICES' : cat.toUpperCase()}
+                </h2>
+              </div>
 
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
-            {viewMode === 'table' ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#fff9fb] border-b border-pink-50">
-                      <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Service</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Duration</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Credentials</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Category</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Price</th>
-                      <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Qty</th>
-                      <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-pink-50">
-                    {filteredStocks.filter(s => s.serviceCategory === cat).length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-8 py-20 text-center">
-                          <div className="flex flex-col items-center opacity-30">
-                            <ExternalLink size={32} className="text-gray-400 mb-2" />
-                            <p className="text-gray-400 font-medium text-xs italic">No entries in {cat}</p>
+              <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
+                {viewMode === 'table' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#fff9fb] border-b border-pink-50">
+                          <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Service</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Duration</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Credentials</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Category</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Price</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Qty</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-pink-50">
+                        {filteredStocks.filter(s => s.serviceCategory === cat).length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-8 py-20 text-center">
+                              <div className="flex flex-col items-center opacity-30">
+                                <ExternalLink size={32} className="text-gray-400 mb-2" />
+                                <p className="text-gray-400 font-medium text-xs italic">No entries in {cat}</p>
                           </div>
                         </td>
                       </tr>
@@ -407,6 +482,8 @@ export default function ListStocks() {
           </div>
         </div>
       ))}
+        </>
+      )}
     </div>
   );
 }

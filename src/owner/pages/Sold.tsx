@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Hash, Minus, ChevronDown } from 'lucide-react';
+import { subscribeToSales, addSale, type Sale } from '../../lib/transactionService';
+import { getAllUsers } from '../../lib/firebaseAuth';
+import { toast } from 'react-toastify';
 
 interface SaleItem {
   id: string;
@@ -89,7 +92,8 @@ function CustomSelect({
             <button
               key={opt.value}
               type="button"
-              onMouseDown={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 onChange(opt.value);
                 setOpen(false);
               }}
@@ -109,9 +113,33 @@ function CustomSelect({
 
 export default function Sold() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedAdminName, setSelectedAdminName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [buyerName, setBuyerName] = useState('');
+  const [soldDate, setSoldDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<SaleItem[]>([
     { id: '1', service: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }
   ]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [admins, setAdmins] = useState<{ id: string; displayName: string; username: string }[]>([]);
+
+  // Get real-time sales from Firestore and fetch admins
+  useEffect(() => {
+    const unsubscribe = subscribeToSales((firebaseSales: Sale[]) => {
+      setSales(firebaseSales);
+      setLoading(false);
+    });
+
+    const fetchAdmins = async () => {
+      const users = await getAllUsers();
+      setAdmins(users.map(u => ({ id: u.id, displayName: u.displayName, username: u.username })));
+    };
+    fetchAdmins();
+
+    return () => unsubscribe();
+  }, []);
 
   const addItem = () => {
     const newItem: SaleItem = {
@@ -180,8 +208,51 @@ export default function Sold() {
     'lifetime', 'other (custom category)'
   ].map(d => ({ label: d, value: d }));
 
+  const handleSold = async () => {
+    if (!selectedAdminName) {
+      toast.error('Please select an admin');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      for (const item of items) {
+        const priceNum = parseFloat(item.price);
+        const qtyNum = parseInt(item.qty);
+        const discountNum = parseFloat(item.discount || '0');
+        const total = (priceNum * qtyNum) - discountNum;
+
+        await addSale({
+          stockId: 'manual', 
+          service: item.service,
+          serviceCategory: item.category,
+          email: customerEmail,
+          buyerName: buyerName,
+          quantity: qtyNum,
+          price: priceNum,
+          discount: discountNum,
+          totalPrice: total,
+          adminName: selectedAdminName,
+          status: 'approved',
+          createdAt: new Date(soldDate)
+        });
+      }
+      toast.success('Sales added successfully!');
+      setIsModalOpen(false);
+      // Reset form
+      setItems([{ id: '1', service: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
+      setCustomerEmail('');
+      setBuyerName('');
+    } catch (error) {
+      console.error('Error adding sales:', error);
+      toast.error('Failed to add sales');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="p-6">
+    <div className="p-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Sold Stocks</h1>
         <button
@@ -193,13 +264,71 @@ export default function Sold() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-pink-50 p-12 flex flex-col items-center justify-center text-center">
-        <div className="w-16 h-16 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-400 mb-4">
-          <Hash size={32} />
+      {loading ? (
+        <div className="bg-white rounded-2xl border border-pink-50 p-12 flex flex-col items-center justify-center text-center">
+          <div className="inline-block">
+            <div className="w-8 h-8 border-4 border-pink-100 border-t-pink-500 rounded-full animate-spin"></div>
+          </div>
+          <p className="text-gray-500 mt-4">Loading sales data...</p>
         </div>
-        <h3 className="text-lg font-semibold text-gray-800">No sales recorded yet</h3>
-        <p className="text-gray-500 mt-1 max-w-xs">Click the "Add Sale" button to manually record a new transaction.</p>
-      </div>
+      ) : sales.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-pink-50 p-12 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-400 mb-4">
+            <Hash size={32} />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-800">No sales recorded yet</h3>
+          <p className="text-gray-500 mt-1 max-w-xs">Click the "Add Sale" button to manually record a new transaction.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-pink-50 p-8 overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-pink-50">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Service</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Category</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Buyer</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Quantity</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Price</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Total</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Sold By</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sales.map((sale) => (
+                <tr key={sale.id} className="border-b border-pink-50 hover:bg-pink-50/30 transition-colors">
+                  <td className="px-6 py-4 text-sm text-gray-800">{sale.service}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800 capitalize">{sale.serviceCategory}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{sale.buyerName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">{sale.quantity}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-800">₱{sale.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-pink-600">₱{sale.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 font-medium">{sale.adminName}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      sale.status === 'approved' ? 'bg-green-100 text-green-700' :
+                      sale.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {sale.status.charAt(0).toUpperCase() + sale.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {new Date(sale.createdAt).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -223,24 +352,47 @@ export default function Sold() {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Admin Username *</label>
                     <div className="relative">
-                      <select className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996] appearance-none">
+                      <select 
+                        value={selectedAdminName}
+                        onChange={(e) => setSelectedAdminName(e.target.value)}
+                        className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996] appearance-none font-bold text-slate-700"
+                      >
                         <option value="">Select admin</option>
-                        <option value="admin1">Admin 1</option>
+                        {admins.map(admin => (
+                          <option key={admin.id} value={admin.displayName}>{admin.displayName} (@{admin.username})</option>
+                        ))}
                       </select>
-                      <Plus size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-pink-400" />
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-pink-400" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Email (Optional)</label>
-                    <input type="text" placeholder="Enter email" className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996]" />
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Email <span className="text-gray-400 font-normal italic">(Optional)</span></label>
+                    <input 
+                      type="text" 
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="Enter email"
+                      className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996] font-bold text-slate-700" 
+                    />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Buyer Name (Optional)</label>
-                    <input type="text" placeholder="Enter buyer name" className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996]" />
+                    <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Buyer Name <span className="text-gray-400 font-normal italic">(Optional)</span></label>
+                    <input 
+                      type="text" 
+                      value={buyerName}
+                      onChange={(e) => setBuyerName(e.target.value)}
+                      placeholder="Enter buyer name"
+                      className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996] font-bold text-slate-700" 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 flex items-center gap-1.5 ml-1">Sold Date *</label>
-                    <input type="date" defaultValue="2026-03-21" className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996]" />
+                    <input 
+                      type="date" 
+                      value={soldDate}
+                      onChange={(e) => setSoldDate(e.target.value)}
+                      className="w-full bg-pink-50/30 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#ee6996] font-bold text-slate-700" 
+                    />
                   </div>
                 </div>
               </div>
@@ -395,8 +547,10 @@ export default function Sold() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Discount (₱)</label>
-                        <input type="number" value={item.discount} onChange={(e) => updateItem(item.id, 'discount', e.target.value)} className="w-full bg-pink-50/20 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all text-pink-500 font-bold" />
+                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Total</label>
+                        <div className="w-full bg-pink-50/10 border-2 border-transparent px-4 py-3 text-xs font-black text-slate-800">
+                          ₱{((parseFloat(item.price) * parseInt(item.qty)) - (parseFloat(item.discount) || 0)).toLocaleString()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -404,8 +558,19 @@ export default function Sold() {
               </div>
 
               <div className="mt-12">
-                <button className="w-full bg-gradient-to-r from-[#ee6996] to-[#fc6797] hover:from-[#d55a84] hover:to-[#e15c87] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-pink-200 transition-all hover:scale-[1.01] active:scale-[0.99]">
-                  Add Sale
+                <button
+                  onClick={handleSold}
+                  disabled={isSubmitting}
+                  className={`w-full bg-gradient-to-r from-[#ee6996] to-[#fc6797] hover:from-[#d55a84] hover:to-[#e15c87] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-pink-200 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Recording Sale...
+                    </>
+                  ) : (
+                    'Record Manual Sale'
+                  )}
                 </button>
               </div>
             </div>

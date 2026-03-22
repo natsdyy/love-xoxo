@@ -1,14 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X, Calendar, Edit2, Trash2, Save, ChevronDown, Minus } from 'lucide-react';
+import { subscribeToCapital, addCapital, updateCapital, deleteCapital, type Capital as CapitalEntry } from '../../lib/transactionService';
+import { toast } from 'react-toastify';
 
-interface CapitalEntry {
-  id: string;
-  service: string;
-  category: string;
-  duration: string;
-  price: number;
-  date: string;
-}
+// CapitalEntry is now imported from transactionService
 
 const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
 const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
@@ -27,24 +22,38 @@ const emptyForm = () => ({
 export default function Capital() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entries, setEntries] = useState<CapitalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm());
   const [editingEntry, setEditingEntry] = useState<CapitalEntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCapital((fetchedCapital) => {
+      setEntries(fetchedCapital);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ── Form helpers ───────────────────────────────────────────
   const handleFormChange = (field: string, value: string | number) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    if (!form.service || !form.category || !form.duration || !form.date) return;
-    const newEntry: CapitalEntry = {
-      id: Date.now().toString(),
-      ...form,
-    };
-    setEntries(prev => [...prev, newEntry]);
-    setForm(emptyForm());
-    setIsModalOpen(false);
+  const handleSubmit = async () => {
+    if (!form.service || !form.category || !form.duration || !form.date) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      await addCapital(form);
+      toast.success('Capital entry added');
+      setForm(emptyForm());
+      setIsModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to add capital');
+    }
   };
 
   // ── Edit helpers ───────────────────────────────────────────
@@ -55,19 +64,33 @@ export default function Capital() {
     setEditingEntry(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  const handleEditSave = () => {
-    if (!editingEntry) return;
-    setEntries(prev => prev.map(e => e.id === editingEntry.id ? editingEntry : e));
-    setEditingEntry(null);
+  const handleEditSave = async () => {
+    if (!editingEntry || !editingEntry.id) return;
+    
+    try {
+      const { id, ...updates } = editingEntry;
+      await updateCapital(id, updates);
+      toast.success('Capital entry updated');
+      setEditingEntry(null);
+    } catch (error) {
+      toast.error('Failed to update capital');
+    }
   };
 
   // ── Delete helpers ─────────────────────────────────────────
-  const handleDelete = () => {
-    setEntries(prev => prev.filter(e => e.id !== deleteConfirmId));
-    setDeleteConfirmId(null);
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    try {
+      await deleteCapital(deleteConfirmId);
+      toast.success('Capital entry deleted');
+      setDeleteConfirmId(null);
+    } catch (error) {
+      toast.error('Failed to delete capital');
+    }
   };
 
-  const entryToDelete = entries.find(e => e.id === deleteConfirmId);
+  const entryToDelete = entries.find(e => e.id === deleteConfirmId) as CapitalEntry | undefined;
 
   // ── Totals ─────────────────────────────────────────────────
   const totalCapital = entries.reduce((sum, e) => sum + e.price, 0);
@@ -226,7 +249,12 @@ export default function Capital() {
         </div>
 
         {/* Content */}
-        {entries.length === 0 ? (
+        {loading ? (
+          <div className="p-20 flex flex-col items-center justify-center text-center">
+            <div className="w-8 h-8 border-4 border-pink-100 border-t-[#ee6996] rounded-full animate-spin mb-4"></div>
+            <p className="text-[#ee6996] font-bold text-sm opacity-40">Loading capital entries...</p>
+          </div>
+        ) : entries.length === 0 ? (
           <div className="p-20 flex flex-col items-center justify-center text-center">
             <p className="text-[#ee6996] font-bold text-sm opacity-40">No capital entries</p>
           </div>
@@ -271,7 +299,7 @@ export default function Capital() {
                         <button onClick={() => handleEditOpen(entry)} className="p-2 hover:bg-blue-50 rounded-xl text-slate-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-100" title="Edit">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => setDeleteConfirmId(entry.id)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
+                        <button onClick={() => setDeleteConfirmId(entry.id || null)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
                           <Trash2 size={14} />
                         </button>
                       </div>

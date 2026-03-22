@@ -1,20 +1,85 @@
-import { useState } from 'react';
-import { Plus, X, ListFilter, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, X, ListFilter, Search, Trash2 } from 'lucide-react';
+import { subscribeToOrders, addOrder, updateOrder, deleteOrder, type SupplierOrder } from '../../lib/transactionService';
+import { toast } from 'react-toastify';
 
-interface OrderItem {
-  id: string;
-  supplier: string;
-  service: string;
-  duration: string;
-  category: string;
-  price: string;
-  qty: string;
-  status: 'PENDING' | 'COMPLETED' | 'DROPPED';
-}
+const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
+const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
+const DURATIONS = ['1 Month', '3 Months', '6 Months', '1 Year', 'Lifetime'];
 
 export default function Orders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [orders] = useState<OrderItem[]>([]);
+  const [orders, setOrders] = useState<SupplierOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [form, setForm] = useState<Omit<SupplierOrder, 'id'>>({
+    supplierName: '',
+    service: '',
+    duration: '',
+    category: '',
+    price: 0,
+    quantity: 0,
+    status: 'PENDING'
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToOrders((fetchedOrders) => {
+      setOrders(fetchedOrders);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const pendingCount = orders.filter(o => o.status === 'PENDING' || o.status === 'Pending').length;
+  const droppedCount = orders.filter(o => o.status === 'DROPPED' || o.status === 'Cancelled').length;
+
+  const filteredOrders = orders.filter(o => 
+    o.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    o.service.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleAddOrder = async () => {
+    if (!form.supplierName || !form.service || !form.duration || !form.category) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    try {
+      await addOrder(form);
+      toast.success('Order added successfully');
+      setForm({
+        supplierName: '',
+        service: '',
+        duration: '',
+        category: '',
+        price: 0,
+        quantity: 0,
+        status: 'PENDING'
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to add order');
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, status: SupplierOrder['status']) => {
+    try {
+      await updateOrder(id, { status });
+      toast.success(`Order marked as ${status}`);
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this order?')) return;
+    try {
+      await deleteOrder(id);
+      toast.success('Order deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete order');
+    }
+  };
 
   return (
     <div className="p-6">
@@ -25,10 +90,10 @@ export default function Orders() {
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Orders</h1>
             <div className="flex items-center gap-2">
               <span className="bg-amber-50 text-amber-600 text-[10px] font-black uppercase px-3 py-1.5 rounded-full border border-amber-100 shadow-sm">
-                Pending: 0
+                Pending: {pendingCount}
               </span>
               <span className="bg-red-50 text-red-600 text-[10px] font-black uppercase px-3 py-1.5 rounded-full border border-red-100 shadow-sm">
-                Dropped: 0
+                Dropped: {droppedCount}
               </span>
             </div>
           </div>
@@ -49,6 +114,8 @@ export default function Orders() {
             <input 
               type="text" 
               placeholder="Search orders..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-xl pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#ee6996] transition-all"
             />
           </div>
@@ -73,7 +140,13 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody>
-              {orders.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-8 py-32 text-center text-pink-400 font-bold">
+                    Loading orders...
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-8 py-32 text-center">
                     <div className="flex flex-col items-center justify-center opacity-40">
@@ -83,7 +156,50 @@ export default function Orders() {
                   </td>
                 </tr>
               ) : (
-                null
+                filteredOrders.map(order => (
+                  <tr key={order.id} className="hover:bg-pink-50/10 transition-colors border-b border-pink-50 last:border-0">
+                    <td className="px-8 py-4">
+                      <span className="text-sm font-bold text-gray-700">{order.supplierName}</span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <span className="text-xs font-semibold text-gray-600">{order.service}</span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{order.duration}</span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <span className="text-sm font-black text-emerald-600">₱{order.price.toLocaleString()}</span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <span className="text-sm font-bold text-gray-600">{order.quantity}</span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <select 
+                        value={order.status}
+                        onChange={(e) => handleUpdateStatus(order.id!, e.target.value as any)}
+                        className={`text-[10px] font-black rounded-full px-3 py-1 border-2 transition-all cursor-pointer outline-none ${
+                          order.status === 'COMPLETED' || order.status === 'Received' ? 'bg-green-50 text-green-600 border-green-100' :
+                          order.status === 'DROPPED' || order.status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-100' :
+                          'bg-amber-50 text-amber-600 border-amber-100'
+                        }`}
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="COMPLETED">COMPLETED</option>
+                        <option value="DROPPED">DROPPED</option>
+                      </select>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => handleDelete(order.id!)}
+                          className="p-2 hover:bg-red-50 rounded-xl text-gray-300 hover:text-red-500 transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -122,6 +238,8 @@ export default function Orders() {
                   <input 
                     type="text" 
                     placeholder="Enter supplier name"
+                    value={form.supplierName}
+                    onChange={(e) => setForm({...form, supplierName: e.target.value})}
                     className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all shadow-sm"
                   />
                 </div>
@@ -129,27 +247,39 @@ export default function Orders() {
                 {/* Service */}
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Service <span className="text-pink-500">*</span></label>
-                  <select className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm">
+                  <select 
+                    value={form.service}
+                    onChange={(e) => setForm({...form, service: e.target.value})}
+                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
+                  >
                     <option value="">Select</option>
-                    <option value="netflix">Netflix</option>
+                    {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
                 {/* Duration */}
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Duration <span className="text-pink-500">*</span></label>
-                  <select className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm">
+                  <select 
+                    value={form.duration}
+                    onChange={(e) => setForm({...form, duration: e.target.value})}
+                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
+                  >
                     <option value="">Select</option>
-                    <option value="1month">1 Month</option>
+                    {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
 
                 {/* Category */}
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Category <span className="text-pink-500">*</span></label>
-                  <select className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm">
+                  <select 
+                    value={form.category}
+                    onChange={(e) => setForm({...form, category: e.target.value})}
+                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
+                  >
                     <option value="">Select</option>
-                    <option value="solo">Solo</option>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
@@ -158,7 +288,8 @@ export default function Orders() {
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Price (₱) <span className="text-pink-500">*</span></label>
                   <input 
                     type="number" 
-                    defaultValue="0.00"
+                    value={form.price}
+                    onChange={(e) => setForm({...form, price: parseFloat(e.target.value) || 0})}
                     step="0.01"
                     className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all shadow-sm font-bold text-emerald-600"
                   />
@@ -169,7 +300,8 @@ export default function Orders() {
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Quantity <span className="text-pink-500">*</span></label>
                   <input 
                     type="number" 
-                    defaultValue="0"
+                    value={form.quantity}
+                    onChange={(e) => setForm({...form, quantity: parseInt(e.target.value) || 0})}
                     className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all shadow-sm"
                   />
                 </div>
@@ -177,7 +309,11 @@ export default function Orders() {
                 {/* Status */}
                 <div className="space-y-2 col-span-full">
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Status <span className="text-pink-500">*</span></label>
-                  <select className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm font-bold text-amber-500">
+                  <select 
+                    value={form.status}
+                    onChange={(e) => setForm({...form, status: e.target.value as any})}
+                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm font-bold text-amber-500"
+                  >
                     <option value="PENDING">PENDING</option>
                     <option value="COMPLETED">COMPLETED</option>
                     <option value="DROPPED">DROPPED</option>
@@ -187,7 +323,10 @@ export default function Orders() {
 
               {/* Action Button */}
               <div className="pt-4">
-                <button className="w-full bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] text-white py-4 rounded-[1.5rem] font-bold text-lg shadow-xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2">
+                <button 
+                  onClick={handleAddOrder}
+                  className="w-full bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] text-white py-4 rounded-[1.5rem] font-bold text-lg shadow-xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+                >
                   Add Order
                 </button>
               </div>

@@ -1,38 +1,70 @@
-// FIRESTORE SECURITY RULES WITH AUTHENTICATION
-// Add these rules to your Firebase Console > Firestore Database > Rules tab
+// FIRESTORE SECURITY RULES
+// Copy and paste these rules into Firebase Console > Firestore Database > Rules tab
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow write to users collection (for login tracking and user data)
-    // Only authenticated users can read/write
+    // Users collection - authenticated users only
+    // Stores login records and user profiles
     match /users/{document=**} {
       allow read, write: if request.auth != null;
     }
 
-    // Inventory collection - authenticated users only
-    match /inventory/{document=**} {
+    // Stocks collection - authenticated users only
+    // Stores all inventory items (subscriptions, services, products)
+    match /stocks/{document=**} {
       allow read, write: if request.auth != null;
     }
 
     // Sales collection - authenticated users only
+    // Stores all sold transactions and revenue records
     match /sales/{document=**} {
       allow read, write: if request.auth != null;
     }
 
+    // Pending collection - authenticated users only
+    // Stores reserved/pending transactions waiting for confirmation
+    match /pending/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
     // Refunds collection - authenticated users only
+    // Stores refund records and refund transactions
     match /refunds/{document=**} {
       allow read, write: if request.auth != null;
     }
 
-    // Admin collection - authenticated users only
-    match /admin/{document=**} {
+    // Capital collection - authenticated users only
+    // Stores cost per service/category for profit tracking
+    match /capital/{document=**} {
       allow read, write: if request.auth != null;
     }
 
-    // Owner collection - authenticated users only
-    match /owner/{document=**} {
+    // Prices collection - authenticated users only
+    // Stores selling prices per service/duration/category
+    match /prices/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Discounts collection - authenticated users only
+    // Stores discount rates and promotional pricing
+    match /discounts/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Orders collection - authenticated users only
+    match /orders/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Monitoring collection - authenticated users only
+    match /monitoring/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Replacements collection - authenticated users only
+    match /replacements/{document=**} {
       allow read, write: if request.auth != null;
     }
 
@@ -40,29 +72,17 @@ service cloud.firestore {
 }
 
 // ============================================
-// STEPS TO APPLY THESE RULES:
+// COLLECTIONS REFERENCE
 // ============================================
-// 1. Go to: https://console.firebase.google.com/
-// 2. Select your project (lovexoxo)
-// 3. Click "Firestore Database" in the left sidebar
-// 4. Click the "Rules" tab at the top
-// 5. Replace ALL content with the rules above
-// 6. Click "Publish" button
-// 7. Wait for confirmation (usually takes 1-2 minutes)
-// 8. Refresh your app at http://localhost:5173/
-
-// ============================================
-// WHAT THESE RULES DO:
-// ============================================
-// - Only authenticated users can read and write
-// - More secure than open access
-// - Uses Firebase Authentication tokens
-// 
-// COLLECTIONS CREATED:
-// - users: Stores all login records for admins and owner
-// - inventory: Stores all stock items
-// - sales: Stores all sales transactions
-// - refunds: Stores all refund records
-// - admin: Admin-specific data
-// - owner: Owner-specific data
+// - users: Login records and user profiles (admins, owners)
+// - stocks: Inventory items (subscriptions, services, products) - status: available/sold
+// - sales: Completed sales transactions
+// - pending: Reserved/pending transactions
+// - refunds: Refund records and transactions
+// - capital: Cost per service for profit calculations
+// - prices: Selling prices per service/duration/category
+// - discounts: Discount rates and promotional pricing
+// - orders: Supplier orders and purchase orders
+// - monitoring: Dynamic account slot tracking
+// - replacements: Account fix/replacement history
 

@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import { Plus, Mail, ChevronDown, X } from 'lucide-react';
-import { addInventoryItem } from '../../lib/firebaseService';
+import { Plus, Mail, ChevronDown, X, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { addStock, SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
+
+interface ItemEntry {
+  id: number;
+  category: string;
+  devices: string;
+  price: string;
+  notes: string;
+  slotEntries: Array<{ id: number; qty: number; slot: string; pin: string }>;
+}
 
 interface BulkModalProps {
   isOpen: boolean;
@@ -74,22 +84,29 @@ function BulkModal({ isOpen, onClose, title, caption, type }: BulkModalProps) {
 export default function NewStocks() {
   const username = localStorage.getItem('username') || 'unknown';
   const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
   const [modalType, setModalType] = useState<'same' | 'different' | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Parent fields (shared across all items)
   const [category, setCategory] = useState('');
   const [service, setService] = useState('');
   const [duration, setDuration] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [itemCategory, setItemCategory] = useState('');
-  const [devices, setDevices] = useState('');
-  const [price, setPrice] = useState('');
-  const [notes, setNotes] = useState('');
-  const [slotEntries, setSlotEntries] = useState([
-    { id: 1, qty: 1, slot: '', pin: '' },
-    { id: 2, qty: 1, slot: '', pin: '' }
+  
+  // Multiple items support
+  const [items, setItems] = useState<ItemEntry[]>([
+    { 
+      id: 1, 
+      category: '', 
+      devices: '', 
+      price: '', 
+      notes: '',
+      slotEntries: []
+    }
   ]);
-  const [manualFields, setManualFields] = useState<string[]>([]); // Track manual entry modes
+  const [manualFields, setManualFields] = useState<string[]>([]);
 
   const toggleManual = (field: string) => {
     setManualFields(prev => 
@@ -97,74 +114,159 @@ export default function NewStocks() {
     );
   };
 
-  const addSlotEntry = () => {
-    setSlotEntries([
-      ...slotEntries,
-      { id: Date.now(), qty: 1, slot: '', pin: '' }
+  const addItem = () => {
+    setItems([
+      ...items,
+      {
+        id: Date.now(),
+        category: '',
+        devices: '',
+        price: '',
+        notes: '',
+        slotEntries: []
+      }
     ]);
   };
 
-  const removeSlotEntry = (id: number) => {
-    setSlotEntries(slotEntries.filter(entry => entry.id !== id));
+  const removeItem = (id: number) => {
+    if (items.length > 1) {
+      setItems(items.filter(item => item.id !== id));
+    } else {
+      toast.error('You must have at least 1 item', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    }
+  };
+
+  const addSlotToItem = (itemId: number) => {
+    setItems(items.map(item => 
+      item.id === itemId 
+        ? {
+            ...item,
+            slotEntries: [...item.slotEntries, { id: Date.now(), qty: 1, slot: '', pin: '' }]
+          }
+        : item
+    ));
+  };
+
+  const removeSlotFromItem = (itemId: number, slotId: number) => {
+    setItems(items.map(item => 
+      item.id === itemId 
+        ? { ...item, slotEntries: item.slotEntries.filter(s => s.id !== slotId) }
+        : item
+    ));
+  };
+
+  const updateSlotEntry = (itemId: number, slotId: number, field: 'qty' | 'slot' | 'pin', value: string | number) => {
+    setItems(items.map(item => 
+      item.id === itemId 
+        ? {
+            ...item,
+            slotEntries: item.slotEntries.map(s => 
+              s.id === slotId 
+                ? { ...s, [field]: field === 'qty' ? parseInt(value as string) || 1 : value }
+                : s
+            )
+          }
+        : item
+    ));
+  };
+
+  const updateItem = (id: number, field: keyof Omit<ItemEntry, 'id' | 'slotEntries'>, value: string) => {
+    setItems(items.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!category || !service || !duration || !email || !password || !itemCategory || !devices || !price) {
-      alert('Please fill in all required fields');
+    if (!category || !service || !duration || !email || !password) {
+      setShowValidation(true);
+      toast.error('Please fill in all parent fields (Category, Service, Duration, Email, Password)', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+      return;
+    }
+
+    if (items.some(item => !item.category || !item.price)) {
+      setShowValidation(true);
+      toast.error('Please fill in Category and Price for all items', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
       return;
     }
 
     setIsLoading(true);
+    setShowValidation(false);
     try {
-      await addInventoryItem({
-        supplierName: 'Owner Stock',
-        service: service,
-        duration: duration,
-        category: itemCategory,
-        price: parseFloat(price),
-        quantity: parseInt(devices),
-        status: 'Received',
-        createdBy: username
+      let successCount = 0;
+      
+      // Create a stock entry for each item
+      for (const item of items) {
+        const slots = item.slotEntries
+          .filter(entry => entry.slot && entry.pin)
+          .map(entry => ({
+            slot: entry.slot,
+            pin: entry.pin
+          }));
+
+        await addStock({
+          service: service,
+          serviceCategory: category,
+          duration: duration,
+          email: email,
+          password: password,
+          category: item.category,
+          quantity: parseInt(item.devices) || 1,
+          price: parseFloat(item.price),
+          devices: item.devices ? item.devices.split(',').map(d => d.trim()) : [],
+          slots: slots.length > 0 ? slots : undefined,
+          notes: item.notes,
+          status: 'available',
+          createdBy: username,
+        });
+        
+        successCount++;
+      }
+
+      toast.success(`✅ ${successCount} stock item(s) added and synced!`, {
+        position: 'top-right',
+        autoClose: 3000,
+        hideProgressBar: false,
       });
 
-      setSuccessMessage('✅ Stock added successfully!');
       // Reset form
       setCategory('');
       setService('');
       setDuration('');
       setEmail('');
       setPassword('');
-      setItemCategory('');
-      setDevices('');
-      setPrice('');
-      setNotes('');
-      setSlotEntries([
-        { id: 1, qty: 1, slot: '', pin: '' },
-        { id: 2, qty: 1, slot: '', pin: '' }
+      setItems([
+        { 
+          id: 1, 
+          category: '', 
+          devices: '', 
+          price: '', 
+          notes: '',
+          slotEntries: []
+        }
       ]);
-
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       console.error('Error adding stock:', error);
-      alert('Failed to add stock. Check console for details.');
+      toast.error('❌ Failed to add stock. Check console for details.', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const services: Record<string, string[]> = {
-    entertainment: ['netflix', 'disney', 'hbo max', 'viu', 'prime video', 'vivaone', 'vivamax', 'loklok basic', 'loklok standard', 'youtube', 'crunchyroll', 'iwanttfc', 'spotify', 'other (custom category)'],
-    educational: ['grammarly', 'quizlet', 'quillbot', 'scribd', 'studocu', 'chatgpt', 'ms365', 'gemini ai', 'other (custom category)'],
-    editing: ['canva', 'capcut', 'picsart', 'other (custom category)'],
-    'other services': ['telegram premium', 'domain making', 'other (custom category)']
-  };
-
-  const durations = [
-    '1 month', '2 months', '3 months', '4 months', '5 months', '6 months',
-    '7 months', '8 months', '9 months', '10 months', '11 months', '1 year', 'lifetime', 'other (custom category)'
-  ];
+  const services: Record<string, string[]> = SERVICE_CATEGORIES;
 
   return (
     <div className="max-w-5xl mx-auto pb-12">
@@ -226,12 +328,12 @@ export default function NewStocks() {
                         setCategory(e.target.value);
                         if (e.target.value === 'other (custom category)') {
                           toggleManual('category');
-                          setService(''); // Clear service when category changes to custom
+                          setService('');
                         } else {
-                          setService(''); // Clear service when category changes
+                          setService('');
                         }
                       }}
-                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                      className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 transition-all ${showValidation && !category ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
                     >
                       <option value="">Select category</option>
                       <option value="entertainment">entertainment</option>
@@ -278,7 +380,7 @@ export default function NewStocks() {
                           toggleManual('service');
                         }
                       }}
-                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                      className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 transition-all ${showValidation && !service ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
                     >
                       <option value="">Select service</option>
                       {category && services[category]?.map(s => (
@@ -314,7 +416,7 @@ export default function NewStocks() {
                   placeholder="Enter Duration"
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
-                  className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                  className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none transition-all ${showValidation && !duration ? 'border-2 border-red-500 focus:border-red-600' : 'border-2 border-pink-200 focus:border-[#ee6996]'}`}
                 />
               ) : (
                 <div className="space-y-3">
@@ -327,10 +429,10 @@ export default function NewStocks() {
                           toggleManual('duration');
                         }
                       }}
-                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                      className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 transition-all ${showValidation && !duration ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
                     >
                       <option value="">Select duration</option>
-                      {durations.map(d => (
+                      {DURATIONS.map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
@@ -349,7 +451,7 @@ export default function NewStocks() {
                 placeholder="Enter email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !email ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
               />
             </div>
           </div>
@@ -359,171 +461,220 @@ export default function NewStocks() {
             <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
               Password <span className="text-red-500">*</span>
             </label>
-            <input 
-              type="password" 
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-            />
-          </div>
-
-          {/* Nested Item Section */}
-          <div className="bg-pink-50/20 border border-pink-100 rounded-3xl p-6 mt-8">
-            <h3 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-pink-100 text-pink-500 flex items-center justify-center text-[10px]">#1</span>
-              Item #1
-            </h3>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center px-1">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  <button 
-                    onClick={() => toggleManual('item_category')}
-                    className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
-                  >
-                    {manualFields.includes('item_category') ? 'List' : 'Type'}
-                  </button>
-                </div>
-                
-                {manualFields.includes('item_category') ? (
-                  <input 
-                    type="text" 
-                    placeholder="Enter Category"
-                    value={itemCategory}
-                    onChange={(e) => setItemCategory(e.target.value)}
-                    className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <select 
-                        value={itemCategory}
-                        onChange={(e) => {
-                          setItemCategory(e.target.value);
-                          if (e.target.value === 'other (custom category)') {
-                            toggleManual('item_category');
-                          }
-                        }}
-                        className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                      >
-                        <option value="">Select category</option>
-                        <option value="solo profile">solo profile</option>
-                        <option value="shared">shared</option>
-                        <option value="solo account">solo account</option>
-                        <option value="invite">invite</option>
-                        <option value="individual">individual</option>
-                        <option value="famhead">famhead</option>
-                        <option value="edu">edu</option>
-                        <option value="chichiro">chichiro</option>
-                        <option value="haku">haku</option>
-                        <option value="howl">howl</option>
-                        <option value="other (custom category)">other (custom category)</option>
-                      </select>
-                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                    Devices <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g., 2"
-                    className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                    Price (₱) <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="0.00"
-                    className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                  />
-                </div>
-              </div>
-
-              {/* Slot & Pin Entries */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
-                  <button 
-                    onClick={addSlotEntry}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
-                  >
-                    <Plus size={12} strokeWidth={3} />
-                    Add Slot/Pin
-                  </button>
-                </div>
-                
-                <div className="space-y-3">
-                  {slotEntries.map((entry, index) => (
-                    <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
-                      <div className="w-20 space-y-1.5">
-                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
-                        <input 
-                          type="number" 
-                          defaultValue={entry.qty}
-                          className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
-                        <input 
-                          type="text" 
-                          placeholder="Slot"
-                          className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
-                        <input 
-                          type="text" 
-                          placeholder="Pin"
-                          className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                        />
-                      </div>
-                      <button 
-                        onClick={() => removeSlotEntry(entry.id)}
-                        className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <X size={16} strokeWidth={3} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`w-full bg-slate-50 rounded-2xl px-4 py-3 pr-12 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !password ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
+              </button>
             </div>
           </div>
 
+          {/* Items Section */}
+          <div className="space-y-6 mt-8">
+            {items.map((item, itemIndex) => (
+              <div key={item.id} className="bg-pink-50/20 border border-pink-100 rounded-3xl p-6 animate-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-pink-100 text-pink-500 flex items-center justify-center text-[10px] font-black">#{itemIndex + 1}</span>
+                    Item #{itemIndex + 1}
+                  </h3>
+                  {items.length > 1 && (
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="p-2 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
+                    >
+                      <X size={18} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-6">
+                  {/* Item Category */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      <button 
+                        onClick={() => toggleManual(`item_category_${item.id}`)}
+                        className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                      >
+                        {manualFields.includes(`item_category_${item.id}`) ? 'List' : 'Type'}
+                      </button>
+                    </div>
+                    
+                    {manualFields.includes(`item_category_${item.id}`) ? (
+                      <input 
+                        type="text" 
+                        placeholder="Enter Category"
+                        value={item.category}
+                        onChange={(e) => updateItem(item.id, 'category', e.target.value)}
+                        className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none transition-all ${showValidation && !item.category ? 'border-2 border-red-500 focus:border-red-600' : 'border-2 border-pink-200 focus:border-[#ee6996]'}`}
+                      />
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <select 
+                            value={item.category}
+                            onChange={(e) => {
+                              updateItem(item.id, 'category', e.target.value);
+                              if (e.target.value === 'other') {
+                                toggleManual(`item_category_${item.id}`);
+                              }
+                            }}
+                            className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 transition-all ${showValidation && !item.category ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
+                          >
+                            <option value="">Select category</option>
+                            {STOCK_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="other">other (custom category)</option>
+                          </select>
+                          <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Devices & Price */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
+                        Devices
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g., mobile, tablet, pc (comma-separated)"
+                        value={item.devices}
+                        onChange={(e) => updateItem(item.id, 'devices', e.target.value)}
+                        className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
+                        Price (₱) <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={item.price}
+                        onChange={(e) => updateItem(item.id, 'price', e.target.value)}
+                        step="0.01"
+                        className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.price ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Slot & Pin Entries */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
+                      <button 
+                        onClick={() => addSlotToItem(item.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
+                      >
+                        <Plus size={12} strokeWidth={3} />
+                        Add Slot/Pin
+                      </button>
+                    </div>
+                    
+                    {item.slotEntries.length === 0 ? (
+                      <div className="text-center py-6 bg-white/50 rounded-2xl border border-dashed border-pink-100">
+                        <p className="text-xs text-slate-400 font-bold">Click 'Add Slot/Pin' to add slot & pin entries</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {item.slotEntries.map((entry, index) => (
+                          <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
+                            <div className="w-20 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
+                              <input 
+                                type="number" 
+                                value={entry.qty}
+                                onChange={(e) => updateSlotEntry(item.id, entry.id, 'qty', e.target.value)}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
+                              <input 
+                                type="text" 
+                                placeholder="Slot"
+                                value={entry.slot}
+                                onChange={(e) => updateSlotEntry(item.id, entry.id, 'slot', e.target.value)}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
+                              <input 
+                                type="text" 
+                                placeholder="Pin"
+                                value={entry.pin}
+                                onChange={(e) => updateSlotEntry(item.id, entry.id, 'pin', e.target.value)}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <button 
+                              onClick={() => removeSlotFromItem(item.id, entry.id)}
+                              className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <X size={16} strokeWidth={3} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Item Notes */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 ml-1">Notes</label>
+                    <textarea 
+                      placeholder="Additional notes for this item (optional)"
+                      value={item.notes}
+                      onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
+                      rows={2}
+                      className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20 resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {/* Add Another Item Button */}
-          <button className="w-full py-4 border-2 border-dashed border-pink-100 rounded-2xl text-pink-500 font-bold text-sm bg-pink-50/10 hover:bg-pink-50/30 transition-colors flex items-center justify-center gap-2">
+          <button 
+            onClick={addItem}
+            type="button"
+            className="w-full py-4 border-2 border-dashed border-pink-100 rounded-2xl text-pink-500 font-bold text-sm bg-pink-50/10 hover:bg-pink-50/30 transition-colors flex items-center justify-center gap-2 mt-6"
+          >
             <Plus size={18} strokeWidth={2.5} />
             Add Another Item
           </button>
 
-          {/* Notes */}
-          <div className="space-y-2 mt-4">
-            <label className="text-xs font-bold text-slate-700 ml-1">Notes</label>
-            <textarea 
-              placeholder="Additional notes (optional)"
-              rows={3}
-              className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20 resize-none"
-            />
-          </div>
-
           {/* Submit Button */}
-          <button className="w-full py-4 bg-[#ee6996] text-white rounded-2xl font-bold text-base shadow-lg shadow-pink-500/20 hover:bg-[#d95d85] transition-all mt-4">
-            Add Stock
+          <button 
+            onClick={handleSubmit}
+            disabled={isLoading}
+            type="button"
+            className={`w-full py-4 rounded-2xl font-bold text-base shadow-lg shadow-pink-500/20 transition-all mt-4 ${
+              isLoading 
+                ? 'bg-gray-400 text-white cursor-not-allowed' 
+                : 'bg-[#ee6996] text-white hover:bg-[#d95d85]'
+            }`}
+          >
+            {isLoading ? 'Adding Stock...' : 'Add Stock'}
           </button>
 
         </div>

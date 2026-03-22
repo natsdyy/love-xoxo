@@ -1,18 +1,7 @@
-import { useState } from 'react';
-import { Plus, X, Monitor, Edit2, Trash2, Save, User, Lock, ChevronDown } from 'lucide-react';
-
-interface Slot {
-  buyer: string;
-  pin: string;
-}
-
-interface MonitoringEntry {
-  id: string;
-  service: string;
-  email: string;
-  password: string;
-  slots: Slot[];
-}
+import { useState, useEffect } from 'react';
+import { Plus, X, Monitor as MonitorIcon, Edit2, Trash2, Save, User, Lock, ChevronDown } from 'lucide-react';
+import { subscribeToMonitoring, addMonitoring, updateMonitoring, deleteMonitoring, type MonitoringEntry, type MonitoringSlot as Slot } from '../../lib/transactionService';
+import { toast } from 'react-toastify';
 
 const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Other'];
 
@@ -26,9 +15,18 @@ const emptyForm = () => ({
 export default function Monitoring() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entries, setEntries] = useState<MonitoringEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm());
   const [editingEntry, setEditingEntry] = useState<MonitoringEntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToMonitoring((fetchedMonitoring) => {
+      setEntries(fetchedMonitoring);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ── Form helpers ──────────────────────────────────────────────
   const handleFormChange = (field: string, value: string) => {
@@ -52,15 +50,20 @@ export default function Monitoring() {
   };
 
   // ── Submit ──────────────────────────────────────────────────
-  const handleSubmit = () => {
-    if (!form.service || !form.email || !form.password) return;
-    const newEntry: MonitoringEntry = {
-      id: Date.now().toString(),
-      ...form,
-    };
-    setEntries(prev => [...prev, newEntry]);
-    setForm(emptyForm());
-    setIsModalOpen(false);
+  const handleSubmit = async () => {
+    if (!form.service || !form.email || !form.password) {
+      toast.error('Please fill in required fields');
+      return;
+    }
+    
+    try {
+      await addMonitoring(form);
+      toast.success('Monitoring entry added');
+      setForm(emptyForm());
+      setIsModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to add entry');
+    }
   };
 
   // ── Edit ────────────────────────────────────────────────────
@@ -90,16 +93,30 @@ export default function Monitoring() {
     setEditingEntry({ ...editingEntry, slots: editingEntry.slots.filter((_, i) => i !== index) });
   };
 
-  const handleEditSave = () => {
-    if (!editingEntry) return;
-    setEntries(prev => prev.map(e => e.id === editingEntry.id ? editingEntry : e));
-    setEditingEntry(null);
+  const handleEditSave = async () => {
+    if (!editingEntry || !editingEntry.id) return;
+    
+    try {
+      const { id, ...updates } = editingEntry;
+      await updateMonitoring(id, updates);
+      toast.success('Monitoring entry updated');
+      setEditingEntry(null);
+    } catch (error) {
+      toast.error('Failed to update entry');
+    }
   };
 
   // ── Delete ──────────────────────────────────────────────────
-  const handleDelete = () => {
-    setEntries(prev => prev.filter(e => e.id !== deleteConfirmId));
-    setDeleteConfirmId(null);
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    try {
+      await deleteMonitoring(deleteConfirmId);
+      toast.success('Monitoring entry deleted');
+      setDeleteConfirmId(null);
+    } catch (error) {
+      toast.error('Failed to delete entry');
+    }
   };
 
   const entryToDelete = entries.find(e => e.id === deleteConfirmId);
@@ -205,10 +222,15 @@ export default function Monitoring() {
       </div>
 
       {/* ── Entries list ───────────────────────────────────── */}
-      <div className={`bg-white rounded-[2rem] shadow-sm border border-pink-50 ${entries.length === 0 ? 'min-h-[160px] flex items-center justify-center' : 'p-6 space-y-4'}`}>
-        {entries.length === 0 ? (
+      <div className={`bg-white rounded-[2rem] shadow-sm border border-pink-50 ${loading || entries.length === 0 ? 'min-h-[160px] flex items-center justify-center' : 'p-6 space-y-4'}`}>
+        {loading ? (
+          <div className="text-center py-10">
+            <div className="w-8 h-8 border-4 border-pink-100 border-t-[#ee6996] rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Loading entries...</p>
+          </div>
+        ) : entries.length === 0 ? (
           <div className="text-center py-10 opacity-30">
-            <Monitor size={40} className="text-pink-300 mx-auto mb-2" />
+            <MonitorIcon size={40} className="text-pink-300 mx-auto mb-2" />
             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No monitoring entries</p>
           </div>
         ) : (
@@ -254,7 +276,7 @@ export default function Monitoring() {
                   <button onClick={() => handleEditOpen(entry)} className="p-2 bg-white rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 shadow-sm border border-pink-50 transition-all" title="Edit">
                     <Edit2 size={14} />
                   </button>
-                  <button onClick={() => setDeleteConfirmId(entry.id)} className="p-2 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 shadow-sm border border-pink-50 transition-all" title="Delete">
+                  <button onClick={() => setDeleteConfirmId(entry.id || null)} className="p-2 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 shadow-sm border border-pink-50 transition-all" title="Delete">
                     <Trash2 size={14} />
                   </button>
                 </div>

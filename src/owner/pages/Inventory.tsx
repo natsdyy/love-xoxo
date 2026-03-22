@@ -1,18 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X, Edit2, Trash2, Save, ChevronDown, Minus } from 'lucide-react';
+import { subscribeToOrders, addOrder, updateOrder, deleteOrder, type SupplierOrder } from '../../lib/transactionService';
+import { toast } from 'react-toastify';
 
-type OrderStatus = 'Pending' | 'Received' | 'Cancelled';
-
-interface InventoryOrder {
-  id: string;
-  supplierName: string;
-  service: string;
-  duration: string;
-  category: string;
-  price: number;
-  quantity: number;
-  status: OrderStatus;
-}
+type OrderStatus = 'Pending' | 'Received' | 'Cancelled' | 'PENDING' | 'COMPLETED' | 'DROPPED';
 
 const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
 const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
@@ -23,9 +14,12 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   Pending:   'bg-yellow-50 text-yellow-600 border border-yellow-200',
   Received:  'bg-green-50 text-green-600 border border-green-200',
   Cancelled: 'bg-red-50 text-red-400 border border-red-200',
+  PENDING:   'bg-yellow-50 text-yellow-600 border border-yellow-200',
+  COMPLETED: 'bg-green-50 text-green-600 border border-green-200',
+  DROPPED:   'bg-red-50 text-red-400 border border-red-200',
 };
 
-const emptyForm = (): Omit<InventoryOrder, 'id'> => ({
+const emptyForm = (): Omit<SupplierOrder, 'id'> => ({
   supplierName: '',
   service: '',
   duration: '',
@@ -40,41 +34,73 @@ const selectCls = `${inputCls} appearance-none cursor-pointer pr-10`;
 
 export default function Inventory() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [orders, setOrders] = useState<InventoryOrder[]>([]);
+  const [orders, setOrders] = useState<SupplierOrder[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm());
-  const [editingOrder, setEditingOrder] = useState<InventoryOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToOrders((fetchedOrders) => {
+      setOrders(fetchedOrders);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ── Form helpers ──────────────────────────────────────────
   const handleFormChange = (field: string, value: string | number) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    if (!form.supplierName || !form.service || !form.duration || !form.category) return;
-    setOrders(prev => [...prev, { id: Date.now().toString(), ...form }]);
-    setForm(emptyForm());
-    setIsModalOpen(false);
+  const handleSubmit = async () => {
+    if (!form.supplierName || !form.service || !form.duration || !form.category) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      await addOrder(form as SupplierOrder);
+      toast.success('Order added successfully');
+      setForm(emptyForm());
+      setIsModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to add order');
+    }
   };
 
   // ── Edit helpers ──────────────────────────────────────────
-  const handleEditOpen = (order: InventoryOrder) => setEditingOrder({ ...order });
+  const handleEditOpen = (order: SupplierOrder) => setEditingOrder({ ...order });
 
   const handleEditChange = (field: string, value: string | number) => {
     if (!editingOrder) return;
     setEditingOrder(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  const handleEditSave = () => {
-    if (!editingOrder) return;
-    setOrders(prev => prev.map(o => o.id === editingOrder.id ? editingOrder : o));
-    setEditingOrder(null);
+  const handleEditSave = async () => {
+    if (!editingOrder || !editingOrder.id) return;
+    
+    try {
+      const { id, ...updates } = editingOrder;
+      await updateOrder(id, updates);
+      toast.success('Order updated successfully');
+      setEditingOrder(null);
+    } catch (error) {
+      toast.error('Failed to update order');
+    }
   };
 
   // ── Delete helpers ────────────────────────────────────────
-  const handleDelete = () => {
-    setOrders(prev => prev.filter(o => o.id !== deleteConfirmId));
-    setDeleteConfirmId(null);
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    try {
+      await deleteOrder(deleteConfirmId);
+      toast.success('Order deleted successfully');
+      setDeleteConfirmId(null);
+    } catch (error) {
+      toast.error('Failed to delete order');
+    }
   };
 
   const orderToDelete = orders.find(o => o.id === deleteConfirmId);
@@ -84,7 +110,7 @@ export default function Inventory() {
     values,
     onChange,
   }: {
-    values: Omit<InventoryOrder, 'id'>;
+    values: Omit<SupplierOrder, 'id'>;
     onChange: (field: string, value: string | number) => void;
   }) => (
     <div className="grid grid-cols-2 gap-4">
@@ -286,7 +312,16 @@ export default function Inventory() {
                 </tr>
               </thead>
               <tbody>
-                {orders.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="py-24 text-center">
+                       <div className="flex flex-col items-center justify-center">
+                          <div className="w-8 h-8 border-4 border-pink-100 border-t-[#ee6996] rounded-full animate-spin mb-4"></div>
+                          <p className="text-sm font-bold text-[#ee6996] opacity-40">Loading inventory...</p>
+                       </div>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-24 text-center">
                       <p className="text-sm font-bold text-[#ee6996] opacity-40">No inventory items</p>
@@ -330,7 +365,7 @@ export default function Inventory() {
                           <button onClick={() => handleEditOpen(order)} className="p-2 hover:bg-blue-50 rounded-xl text-slate-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-100" title="Edit">
                             <Edit2 size={13} />
                           </button>
-                          <button onClick={() => setDeleteConfirmId(order.id)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
+                          <button onClick={() => setDeleteConfirmId(order.id || null)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
                             <Trash2 size={13} />
                           </button>
                         </div>
