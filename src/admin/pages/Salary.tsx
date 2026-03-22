@@ -9,8 +9,11 @@ import {
   User,
   DollarSign
 } from 'lucide-react';
+import { getUserDisplayName } from '../../lib/auth';
 
 export default function Salary() {
+  const username = localStorage.getItem('username') || '';
+  const displayName = getUserDisplayName(username);
   const [currentMonth] = useState('March 2026');
   const [weeklyData] = useState([
     { week: 'March 1 - March 7', sales: '₱4,500', capital: '₱2,800', profit: '₱1,700', salary: '₱680' },
@@ -30,7 +33,7 @@ export default function Salary() {
           </div>
           <div>
             <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">Active Partner</p>
-            <p className="text-xl font-black">Mir</p>
+            <p className="text-xl font-black">{displayName}</p>
           </div>
         </div>
 

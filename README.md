@@ -38,19 +38,19 @@ sa orders naman ma is list yun para sa orders namin sa mga supplier namin
 
 
 LOGIN PAGE
-owners login access
-username: ownereli
-password: silverdawn
+	owners login access
+	username: ownereli
+	password: silverdawn
 
-admins login access
-username: admin_cherry
-password: xzshop123
+	admins login access
+	username: admin_cherry
+	password: xzshop123
 
-username: admin_mir
-password: xzshop123
+	username: admin_mir
+	password: xzshop123
 
-username: admin_sica
-password: xzshop123
+	username: admin_sica
+	password: xzshop123
 
 OWNER NAVIGATION
 Dashboard Section

@@ -72,10 +72,21 @@ function BulkModal({ isOpen, onClose, title, caption, type }: BulkModalProps) {
 
 export default function NewStocks() {
   const [modalType, setModalType] = useState<'same' | 'different' | null>(null);
+  const [category, setCategory] = useState('');
+  const [service, setService] = useState('');
+  const [duration, setDuration] = useState('');
+  const [itemCategory, setItemCategory] = useState('');
   const [slotEntries, setSlotEntries] = useState([
     { id: 1, qty: 1, slot: '', pin: '' },
     { id: 2, qty: 1, slot: '', pin: '' }
   ]);
+  const [manualFields, setManualFields] = useState<string[]>([]); // Track manual entry modes
+
+  const toggleManual = (field: string) => {
+    setManualFields(prev => 
+      prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+    );
+  };
 
   const addSlotEntry = () => {
     setSlotEntries([
@@ -87,6 +98,18 @@ export default function NewStocks() {
   const removeSlotEntry = (id: number) => {
     setSlotEntries(slotEntries.filter(entry => entry.id !== id));
   };
+
+  const services: Record<string, string[]> = {
+    entertainment: ['netflix', 'disney', 'hbo max', 'viu', 'prime video', 'vivaone', 'vivamax', 'loklok basic', 'loklok standard', 'youtube', 'crunchyroll', 'iwanttfc', 'spotify', 'other (custom category)'],
+    educational: ['grammarly', 'quizlet', 'quillbot', 'scribd', 'studocu', 'chatgpt', 'ms365', 'gemini ai', 'other (custom category)'],
+    editing: ['canva', 'capcut', 'picsart', 'other (custom category)'],
+    'other services': ['telegram premium', 'domain making', 'other (custom category)']
+  };
+
+  const durations = [
+    '1 month', '2 months', '3 months', '4 months', '5 months', '6 months',
+    '7 months', '8 months', '9 months', '10 months', '11 months', '1 year', 'lifetime', 'other (custom category)'
+  ];
 
   return (
     <div className="max-w-5xl mx-auto pb-12">
@@ -119,93 +142,147 @@ export default function NewStocks() {
           {/* Row 1: Category & Service */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option value="">Select category</option>
-                  <option value="entertainment">entertainment</option>
-                  <option value="educational">educational</option>
-                  <option value="editing">editing</option>
-                  <option value="other services">other services</option>
-                </select>
-                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <div className="flex justify-between items-center px-1">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <button 
+                  onClick={() => toggleManual('category')}
+                  className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                >
+                  {manualFields.includes('category') ? 'List' : 'Type'}
+                </button>
               </div>
+              
+              {manualFields.includes('category') ? (
+                <input 
+                  type="text" 
+                  placeholder="Enter Category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                />
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <select 
+                      value={category}
+                      onChange={(e) => {
+                        setCategory(e.target.value);
+                        if (e.target.value === 'other (custom category)') {
+                          toggleManual('category');
+                          setService(''); // Clear service when category changes to custom
+                        } else {
+                          setService(''); // Clear service when category changes
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                    >
+                      <option value="">Select category</option>
+                      <option value="entertainment">entertainment</option>
+                      <option value="educational">educational</option>
+                      <option value="editing">editing</option>
+                      <option value="other services">other services</option>
+                      <option value="other (custom category)">other (custom category)</option>
+                    </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                Service <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option value="">Select service</option>
-                  <optgroup label="entertainment">
-                    <option value="netflix">netflix</option>
-                    <option value="disney">disney</option>
-                    <option value="hbo max">hbo max</option>
-                    <option value="viu">viu</option>
-                    <option value="prime video">prime video</option>
-                    <option value="vivaone">vivaone</option>
-                    <option value="vivamax">vivamax</option>
-                    <option value="loklok basic">loklok basic</option>
-                    <option value="loklok standard">loklok standard</option>
-                    <option value="youtube">youtube</option>
-                    <option value="crunchyroll">crunchyroll</option>
-                    <option value="iwanttfc">iwanttfc</option>
-                    <option value="spotify">spotify</option>
-                  </optgroup>
-                  <optgroup label="educational">
-                    <option value="grammarly">grammarly</option>
-                    <option value="quizlet">quizlet</option>
-                    <option value="quillbot">quillbot</option>
-                    <option value="scribd">scribd</option>
-                    <option value="studocu">studocu</option>
-                    <option value="chatgpt">chatgpt</option>
-                    <option value="ms365">ms365</option>
-                    <option value="gemini ai">gemini ai</option>
-                  </optgroup>
-                  <optgroup label="editing">
-                    <option value="canva">canva</option>
-                    <option value="capcut">capcut</option>
-                    <option value="picsart">picsart</option>
-                  </optgroup>
-                  <optgroup label="other services">
-                    <option value="telegram premium">telegram premium</option>
-                    <option value="domain making">domain making</option>
-                  </optgroup>
-                </select>
-                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <div className="flex justify-between items-center px-1">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  Service <span className="text-red-500">*</span>
+                </label>
+                <button 
+                  onClick={() => toggleManual('service')}
+                  className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                >
+                  {manualFields.includes('service') ? 'List' : 'Type'}
+                </button>
               </div>
+
+              {manualFields.includes('service') ? (
+                <input 
+                  type="text" 
+                  placeholder="Enter Service"
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                  className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                />
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <select 
+                      value={service}
+                      onChange={(e) => {
+                        setService(e.target.value);
+                        if (e.target.value === 'other (custom category)') {
+                          toggleManual('service');
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                    >
+                      <option value="">Select service</option>
+                      {category && services[category]?.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                      {(!category || category === 'other (custom category)') && <option value="other (custom category)">other (custom category)</option>}
+                    </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Row 2: Duration & Email */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                Duration <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                  <option value="">Select duration</option>
-                  <option value="1 month">1 month</option>
-                  <option value="2 months">2 months</option>
-                  <option value="3 months">3 months</option>
-                  <option value="4 months">4 months</option>
-                  <option value="5 months">5 months</option>
-                  <option value="6 months">6 months</option>
-                  <option value="7 months">7 months</option>
-                  <option value="8 months">8 months</option>
-                  <option value="9 months">9 months</option>
-                  <option value="10 months">10 months</option>
-                  <option value="11 months">11 months</option>
-                  <option value="1 year">1 year</option>
-                  <option value="lifetime">lifetime</option>
-                </select>
-                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <div className="flex justify-between items-center px-1">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  Duration <span className="text-red-500">*</span>
+                </label>
+                <button 
+                  onClick={() => toggleManual('duration')}
+                  className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                >
+                  {manualFields.includes('duration') ? 'List' : 'Type'}
+                </button>
               </div>
+
+              {manualFields.includes('duration') ? (
+                <input 
+                  type="text" 
+                  placeholder="Enter Duration"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                />
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <select 
+                      value={duration}
+                      onChange={(e) => {
+                        setDuration(e.target.value);
+                        if (e.target.value === 'other (custom category)') {
+                          toggleManual('duration');
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                    >
+                      <option value="">Select duration</option>
+                      {durations.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -241,26 +318,56 @@ export default function NewStocks() {
 
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                  Category <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20">
-                    <option value="">Select category</option>
-                    <option value="solo profile">solo profile</option>
-                    <option value="shared">shared</option>
-                    <option value="solo account">solo account</option>
-                    <option value="invite">invite</option>
-                    <option value="individual">individual</option>
-                    <option value="famhead">famhead</option>
-                    <option value="edu">edu</option>
-                    <option value="chichiro">chichiro</option>
-                    <option value="haku">haku</option>
-                    <option value="howl">howl</option>
-                    <option value="other">other (custom category)</option>
-                  </select>
-                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <button 
+                    onClick={() => toggleManual('item_category')}
+                    className="text-[10px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                  >
+                    {manualFields.includes('item_category') ? 'List' : 'Type'}
+                  </button>
                 </div>
+                
+                {manualFields.includes('item_category') ? (
+                  <input 
+                    type="text" 
+                    placeholder="Enter Category"
+                    value={itemCategory}
+                    onChange={(e) => setItemCategory(e.target.value)}
+                    className="w-full bg-white border-2 border-pink-200 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <select 
+                        value={itemCategory}
+                        onChange={(e) => {
+                          setItemCategory(e.target.value);
+                          if (e.target.value === 'other (custom category)') {
+                            toggleManual('item_category');
+                          }
+                        }}
+                        className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                      >
+                        <option value="">Select category</option>
+                        <option value="solo profile">solo profile</option>
+                        <option value="shared">shared</option>
+                        <option value="solo account">solo account</option>
+                        <option value="invite">invite</option>
+                        <option value="individual">individual</option>
+                        <option value="famhead">famhead</option>
+                        <option value="edu">edu</option>
+                        <option value="chichiro">chichiro</option>
+                        <option value="haku">haku</option>
+                        <option value="howl">howl</option>
+                        <option value="other (custom category)">other (custom category)</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

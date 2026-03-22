@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { USERS } from '../../lib/auth';
 
 interface SalaryRecord {
   admin: string;
+  displayName: string;
   sales: number;
   profit: string;
   salary: string;
@@ -10,11 +12,15 @@ interface SalaryRecord {
 export default function Salary() {
   const [activeTab, setActiveTab] = useState<'weekly' | 'monthly'>('weekly');
   
-  const records: SalaryRecord[] = [
-    { admin: 'admin_cherry', sales: 0, profit: '₱0.00', salary: '₱0.00' },
-    { admin: 'admin_mlr', sales: 0, profit: '₱0.00', salary: '₱0.00' },
-    { admin: 'admin_slca', sales: 0, profit: '₱0.00', salary: '₱0.00' },
-  ];
+  // Dynamically generate records from admin users in auth config
+  const adminUsers = USERS.filter(u => u.role === 'admin');
+  const records: SalaryRecord[] = adminUsers.map(user => ({
+    admin: user.username,
+    displayName: user.displayName,
+    sales: 0,
+    profit: '₱0.00',
+    salary: '₱0.00'
+  }));
 
   return (
     <div className="p-6">
@@ -41,7 +47,7 @@ export default function Salary() {
             <tbody className="divide-y divide-pink-50">
               {records.map((record, index) => (
                 <tr key={index} className="hover:bg-pink-50/20 transition-colors">
-                  <td className="px-10 py-5 text-sm font-bold text-gray-700">{record.admin}</td>
+                  <td className="px-10 py-5 text-sm font-bold text-gray-700">{record.displayName}</td>
                   <td className="px-10 py-5 text-sm font-medium text-gray-500">{record.sales}</td>
                   <td className="px-10 py-5 text-sm font-bold text-gray-800">{record.profit}</td>
                   <td className="px-10 py-5 text-sm font-black text-[#ee6996]">{record.salary}</td>

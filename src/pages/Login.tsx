@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
+import { validateCredentials } from '../lib/auth';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -13,12 +14,12 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
-    if (username === 'admin_mir' && password === 'xzshop123') {
-      localStorage.setItem('userRole', 'admin');
-      navigate('/admin');
-    } else if (username === 'ownereli' && password === 'silverdawn') {
-      localStorage.setItem('userRole', 'owner');
-      navigate('/owner');
+    const user = validateCredentials(username, password);
+
+    if (user) {
+      localStorage.setItem('userRole', user.role);
+      localStorage.setItem('username', username);
+      navigate(user.role === 'admin' ? '/admin' : '/owner');
     } else {
       setError('Invalid username or password');
     }

@@ -1,12 +1,16 @@
 import { DollarSign, TrendingUp, BarChart2 } from 'lucide-react';
+import { getUserDisplayName } from '../../lib/auth';
 
 export default function Dashboard() {
+  const username = localStorage.getItem('username') || '';
+  const displayName = getUserDisplayName(username);
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
       <div className="bg-pink-100 rounded-xl p-6 flex justify-between items-center shadow-sm">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">Welcome back, Mir!</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Welcome back, {displayName}!</h2>
           <p className="text-sm text-gray-600 mt-1">Love, Xoxo - Inventory & Sales Management</p>
         </div>
         <div className="text-right text-xs text-gray-500 space-y-1">
