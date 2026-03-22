@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RotateCcw, Search, Filter, Image as ImageIcon, User, AlertCircle, CheckCircle2, Loader2, X, Upload } from 'lucide-react';
+import { RotateCcw, Search, Filter, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { subscribeToRefunds, updateRefund, updateSale, type Refund } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
 
