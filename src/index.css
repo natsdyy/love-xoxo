@@ -16,3 +16,17 @@
 body {
   background-color: #f3f4f6; /* min-h-screen bg-gray-100 */
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.animate-shake {
+  animation: shake 0.15s ease-in-out 0s 2;
+}
+
+.border-error {
+  border-color: #ef4444 !important; /* text-red-500 */
+}

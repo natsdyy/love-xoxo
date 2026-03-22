@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, LayoutGrid, List as ListIcon, Plus, Edit2, Trash2, ExternalLink, X, Save } from 'lucide-react';
+import { Search, LayoutGrid, List as ListIcon, Edit2, Trash2, ExternalLink, X, Save } from 'lucide-react';
 import { subscribeToStocks, updateStock, deleteStock, type Stock } from '../../lib/stockService';
 import { toast } from 'react-toastify';
 
@@ -280,10 +280,6 @@ export default function ListStocks() {
             </button>
           </div>
 
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-[#ee6996] text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-200/50 hover:bg-[#d95d85] transition-all">
-            <Plus size={16} strokeWidth={3} />
-            Add Manual
-          </button>
         </div>
       </div>
 

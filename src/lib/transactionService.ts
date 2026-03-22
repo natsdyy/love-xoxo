@@ -178,6 +178,18 @@ export const deleteSale = async (saleId: string) => {
   }
 };
 
+export const clearAllSales = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'sales'));
+    const batchDelete = querySnapshot.docs.map(d => deleteDoc(doc(db, 'sales', d.id)));
+    await Promise.all(batchDelete);
+    console.log('All sales cleared');
+  } catch (error) {
+    console.error('Error clearing sales:', error);
+    throw error;
+  }
+};
+
 export const subscribeToSales = (callback: (sales: Sale[]) => void) => {
   const q = query(collection(db, 'sales'), orderBy('createdAt', 'desc'));
   const unsubscribe = onSnapshot(q, (querySnapshot) => {

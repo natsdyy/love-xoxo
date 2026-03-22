@@ -124,6 +124,25 @@ export const updateStock = async (stockId: string, updates: Partial<Stock>) => {
   }
 };
 
+// Update all stocks with same email and password (shared quantity logic)
+export const updateRelatedStocks = async (email: string, password: string, updates: Partial<Stock>) => {
+  try {
+    const q = query(collection(db, 'stocks'), where('email', '==', email), where('password', '==', password));
+    const querySnapshot = await getDocs(q);
+    
+    const updatePromises = querySnapshot.docs.map(doc => {
+      const stockRef = doc.id;
+      return updateStock(stockRef, updates);
+    });
+    
+    await Promise.all(updatePromises);
+    console.log(`Updated ${updatePromises.length} related stocks for ${email}`);
+  } catch (error) {
+    console.error('Error updating related stocks:', error);
+    throw error;
+  }
+};
+
 // Delete stock
 export const deleteStock = async (stockId: string) => {
   try {

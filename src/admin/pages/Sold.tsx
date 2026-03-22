@@ -8,9 +8,12 @@ import {
   Plus,
   X,
   Minus,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
-import { subscribeToSales, addSale, type Sale } from '../../lib/transactionService';
+import { subscribeToSales, addSale, deleteSale, clearAllSales, type Sale } from '../../lib/transactionService';
 import { getAllUsers } from '../../lib/firebaseAuth';
 import { toast } from 'react-toastify';
 
@@ -126,6 +129,8 @@ export default function Sold() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [admins, setAdmins] = useState<{ id: string; displayName: string; username: string }[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Form states
   const [selectedAdminName, setSelectedAdminName] = useState('');
@@ -214,9 +219,9 @@ export default function Sold() {
     setIsSubmitting(true);
     try {
       for (const item of items) {
-        const priceNum = parseFloat(item.price);
-        const qtyNum = parseInt(item.qty);
-        const discountNum = parseFloat(item.discount || '0');
+        const priceNum = parseFloat(item.price) || 0;
+        const qtyNum = parseInt(item.qty) || 1;
+        const discountNum = parseFloat(item.discount || '0') || 0;
         const total = (priceNum * qtyNum) - discountNum;
 
         await addSale({
@@ -247,11 +252,43 @@ export default function Sold() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this record?')) {
+      try {
+        await deleteSale(id);
+        toast.success('Record deleted');
+      } catch (error) {
+        toast.error('Failed to delete record');
+      }
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (window.confirm('Are you sure you want to CLEAR ALL logs? This cannot be undone.')) {
+      try {
+        await clearAllSales();
+        toast.success('All logs cleared');
+      } catch (error) {
+        toast.error('Failed to clear logs');
+      }
+    }
+  };
+
   const filteredTransactions = transactions.filter(tx => 
-    tx.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (tx.service || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (tx.buyerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (tx.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.totalPrice || 0), 0);
   const topSeller = transactions.reduce((acc, tx) => {
@@ -320,9 +357,16 @@ export default function Sold() {
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full md:w-64 shadow-sm font-medium"
+                className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2.5 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full md:w-64 shadow-sm font-medium"
               />
             </div>
+            <button
+              onClick={handleClearAll}
+              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
+              title="Clear All Logs"
+            >
+              <Trash2 size={20} />
+            </button>
           </div>
         </div>
 
@@ -337,15 +381,16 @@ export default function Sold() {
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Price</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Sold By</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Date</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-pink-50">
               {loading ? (
-                <tr><td colSpan={7} className="px-8 py-10 text-center text-slate-400">Loading...</td></tr>
-              ) : filteredTransactions.length === 0 ? (
-                <tr><td colSpan={7} className="px-8 py-10 text-center text-slate-400">No transactions found</td></tr>
+                <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-400">Loading...</td></tr>
+              ) : paginatedTransactions.length === 0 ? (
+                <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-400">No transactions found</td></tr>
               ) : (
-                filteredTransactions.map((tx) => (
+                paginatedTransactions.map((tx) => (
                   <tr key={tx.id} className="hover:bg-pink-50/10 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-3">
@@ -365,7 +410,7 @@ export default function Sold() {
                       <span className="text-[10px] font-bold text-[#ee6996] bg-pink-50 px-2 py-1 rounded-lg uppercase">{tx.serviceCategory}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="text-sm font-black text-slate-800">₱{tx.totalPrice?.toLocaleString()}</span>
+                      <span className="text-sm font-black text-slate-800">₱{(tx.totalPrice || 0).toLocaleString()}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">
@@ -375,14 +420,62 @@ export default function Sold() {
                     </td>
                     <td className="px-6 py-5 text-center">
                       <span className="text-[10px] text-slate-400 font-medium">
-                        {tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleString() : new Date(tx.createdAt).toLocaleString()}
+                        {tx.createdAt ? (
+                          (tx.createdAt.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt)).toLocaleString()
+                        ) : '---'}
                       </span>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <button 
+                        onClick={() => handleDelete(tx.id!)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-95"
+                        title="Delete record"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-8 bg-[#fffcfd]/30 border-t border-pink-50">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                      currentPage === i + 1
+                        ? 'bg-[#ee6996] text-white shadow-md shadow-pink-200'
+                        : 'text-gray-400 hover:bg-pink-50 hover:text-[#ee6996]'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
