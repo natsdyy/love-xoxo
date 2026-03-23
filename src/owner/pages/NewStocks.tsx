@@ -7,7 +7,6 @@ interface ItemEntry {
   id: number;
   category: string;
   devices: string;
-  quantity: string;
   price: string;
   notes: string;
   slotEntries: Array<{ id: number; qty: number; slot: string; pin: string }>;
@@ -102,7 +101,6 @@ export default function NewStocks() {
       id: 1, 
       category: '', 
       devices: '', 
-      quantity: '1',
       price: '', 
       notes: '',
       slotEntries: []
@@ -123,7 +121,6 @@ export default function NewStocks() {
         id: Date.now(),
         category: '',
         devices: '',
-        quantity: '1',
         price: '',
         notes: '',
         slotEntries: []
@@ -217,10 +214,6 @@ export default function NewStocks() {
             pin: entry.pin
           }));
 
-        // Generate device buttons based on count (e.g., 2 devices -> buttons ["1", "2"])
-        const deviceCount = parseInt(item.devices) || 0;
-        const deviceButtons = Array.from({ length: deviceCount }, (_, i) => (i + 1).toString());
-
         await addStock({
           service: service,
           serviceCategory: category,
@@ -228,9 +221,9 @@ export default function NewStocks() {
           email: email,
           password: password,
           category: item.category,
-          quantity: parseInt(item.quantity) || 1,
+          quantity: parseInt(item.devices) || 1,
           price: parseFloat(item.price),
-          devices: deviceButtons,
+          devices: item.devices ? item.devices.split(',').map(d => d.trim()) : [],
           slots: slots.length > 0 ? slots : undefined,
           notes: item.notes,
           status: 'available',
@@ -257,7 +250,6 @@ export default function NewStocks() {
           id: 1, 
           category: '', 
           devices: '', 
-          quantity: '1',
           price: '', 
           notes: '',
           slotEntries: []
@@ -554,46 +546,18 @@ export default function NewStocks() {
                     )}
                   </div>
 
-                  {/* Devices, Quantity & Price */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Devices & Price */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                        Number of Devices
-                      </label>
-                      <div className="flex gap-2">
-                        {[1, 2, 3, 4, 5].map((count) => (
-                          <button
-                            key={count}
-                            type="button"
-                            onClick={() => updateItem(item.id, 'devices', count.toString())}
-                            className={`flex-1 py-3 rounded-xl border-2 font-black text-xs transition-all ${
-                              item.devices === count.toString()
-                                ? 'bg-[#ee6996] border-[#ee6996] text-white'
-                                : 'bg-white border-pink-100 text-[#ee6996] hover:bg-pink-50'
-                            }`}
-                          >
-                            {count}
-                          </button>
-                        ))}
-                        <input 
-                          type="number" 
-                          placeholder="Other"
-                          value={item.devices && ![1,2,3,4,5].includes(parseInt(item.devices)) ? item.devices : ''}
-                          onChange={(e) => updateItem(item.id, 'devices', e.target.value)}
-                          className="w-20 bg-white border-2 border-pink-100 rounded-xl px-3 py-3 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                        Quantity <span className="text-red-500">*</span>
+                        Devices
                       </label>
                       <input 
-                        type="number" 
-                        placeholder="1"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
-                        className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.quantity ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
+                        type="text" 
+                        placeholder="e.g., mobile, tablet, pc (comma-separated)"
+                        value={item.devices}
+                        onChange={(e) => updateItem(item.id, 'devices', e.target.value)}
+                        className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
                       />
                     </div>
                     <div className="space-y-2">

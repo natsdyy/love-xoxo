@@ -349,10 +349,14 @@ export const getCapitalByService = async (service: string) => {
 export const subscribeToCapital = (callback: (capital: Capital[]) => void) => {
   const q = query(collection(db, 'capital'), orderBy('date', 'desc'));
   const unsubscribe = onSnapshot(q, (querySnapshot) => {
-    const capital = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Capital[];
+    const capital = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      // Normalize Firestore Timestamp → 'YYYY-MM-DD' string
+      if (data.date && typeof data.date === 'object' && 'seconds' in data.date) {
+        data.date = new Date(data.date.seconds * 1000).toISOString().split('T')[0];
+      }
+      return { id: doc.id, ...data };
+    }) as Capital[];
     callback(capital);
   });
   return unsubscribe;

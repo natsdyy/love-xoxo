@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Hash, Minus, ChevronDown, Search, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { subscribeToSales, addSale, deleteSale, clearAllSales, type Sale } from '../../lib/transactionService';
+import { Plus, X, Hash, Minus, ChevronDown } from 'lucide-react';
+import { subscribeToSales, addSale, type Sale } from '../../lib/transactionService';
 import { getAllUsers } from '../../lib/firebaseAuth';
 import { toast } from 'react-toastify';
 
@@ -123,9 +123,6 @@ export default function Sold() {
   ]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
   const [admins, setAdmins] = useState<{ id: string; displayName: string; username: string }[]>([]);
 
   // Get real-time sales from Firestore and fetch admins
@@ -220,9 +217,9 @@ export default function Sold() {
     setIsSubmitting(true);
     try {
       for (const item of items) {
-        const priceNum = parseFloat(item.price) || 0;
-        const qtyNum = parseInt(item.qty) || 1;
-        const discountNum = parseFloat(item.discount || '0') || 0;
+        const priceNum = parseFloat(item.price);
+        const qtyNum = parseInt(item.qty);
+        const discountNum = parseFloat(item.discount || '0');
         const total = (priceNum * qtyNum) - discountNum;
 
         await addSale({
@@ -254,77 +251,17 @@ export default function Sold() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this record?')) {
-      try {
-        await deleteSale(id);
-        toast.success('Record deleted');
-      } catch (error) {
-        toast.error('Failed to delete record');
-      }
-    }
-  };
-
-  const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to CLEAR ALL logs? This cannot be undone.')) {
-      try {
-        await clearAllSales();
-        toast.success('All logs cleared');
-      } catch (error) {
-        toast.error('Failed to clear logs');
-      }
-    }
-  };
-
-  const filteredSales = sales.filter(s => 
-    (s.service || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.buyerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
   return (
     <div className="p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Sold Stocks</h1>
-          <p className="text-xs text-gray-400 font-medium italic mt-1 font-sans">Historical records of all successful transactions</p>
-        </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative group flex-1 md:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#ee6996] transition-colors" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search sales..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2.5 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full shadow-sm font-medium"
-            />
-          </div>
-          <button
-            onClick={handleClearAll}
-            className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all tooltip"
-            title="Clear All Logs"
-          >
-            <Trash2 size={20} />
-          </button>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[#ee6996] hover:bg-[#d55a84] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-pink-200 active:scale-95"
-          >
-            <Plus size={18} />
-            Add Sale
-          </button>
-        </div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold text-gray-800">Sold Stocks</h1>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[#ee6996] hover:bg-[#d55a84] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold transition-all shadow-lg shadow-pink-200"
+        >
+          <Plus size={20} />
+          Add Sale
+        </button>
       </div>
 
       {loading ? (
@@ -355,19 +292,18 @@ export default function Sold() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Total</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Sold By</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Status</th>
-                <th className="px-6 py-4 text-center text-xs font-black text-[#ee6996] bg-[#fff9fb] uppercase tracking-[0.15em]">Date</th>
-                <th className="px-6 py-4 text-center text-xs font-black text-[#ee6996] bg-[#fff9fb] uppercase tracking-[0.15em]">Action</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 bg-pink-50/50">Date</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedSales.map((sale) => (
+              {sales.map((sale) => (
                 <tr key={sale.id} className="border-b border-pink-50 hover:bg-pink-50/30 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-800">{sale.service}</td>
                   <td className="px-6 py-4 text-sm text-gray-800 capitalize">{sale.serviceCategory}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{sale.buyerName}</td>
                   <td className="px-6 py-4 text-sm text-gray-800">{sale.quantity}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">₱{sale.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-pink-600">₱{(sale.totalPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-pink-600">₱{sale.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 font-medium">{sale.adminName}</td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -379,66 +315,18 @@ export default function Sold() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {sale.createdAt ? (
-                      (sale.createdAt.toDate ? sale.createdAt.toDate() : new Date(sale.createdAt)).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-                    ) : '---'}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button 
-                      onClick={() => handleDelete(sale.id!)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
-                      title="Delete Record"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {new Date(sale.createdAt).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8 pb-4">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
-                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              
-              <div className="flex items-center gap-1">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button
-                    key={i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      currentPage === i + 1
-                        ? 'bg-[#ee6996] text-white shadow-md'
-                        : 'text-gray-400 hover:bg-pink-50 hover:text-[#ee6996]'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          )}
         </div>
       )}
 

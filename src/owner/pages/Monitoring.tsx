@@ -3,7 +3,7 @@ import { Plus, X, Monitor as MonitorIcon, Edit2, Trash2, Save, User, Lock, Chevr
 import { subscribeToMonitoring, addMonitoring, updateMonitoring, deleteMonitoring, type MonitoringEntry, type MonitoringSlot as Slot } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
 
-const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Other'];
+const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
 
 const emptyForm = () => ({
   service: '',
