@@ -3,18 +3,17 @@ import { Plus, X, Tag, Loader2, Trash2, ChevronDown } from 'lucide-react';
 import { subscribeToDiscounts, addDiscount, deleteDiscount, type Discount } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
 
-const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
-const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
-const DURATIONS = ['1 Month', '3 Months', '6 Months', '1 Year', 'Lifetime'];
+import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 
-const emptyForm = (): Omit<Discount, 'id'> => ({
+const emptyForm = (): Omit<Discount, 'id'> & { manualFields?: string[] } => ({
   service: '',
-  serviceCategory: 'Entertainment',
+  serviceCategory: 'entertainment',
   duration: '',
   category: '',
   originalPrice: 0,
   discountPercentage: 0,
   discountedPrice: 0,
+  manualFields: [],
 });
 
 const inputCls = 'w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all';
@@ -35,7 +34,7 @@ export default function OnSale() {
     return () => unsubscribe();
   }, []);
 
-  const handleFormChange = (field: string, value: string | number) => {
+  const handleFormChange = (field: string, value: any) => {
     setForm(prev => {
       const updated = { ...prev, [field]: value };
       if (field === 'originalPrice' || field === 'discountPercentage') {
@@ -45,6 +44,16 @@ export default function OnSale() {
       }
       return updated;
     });
+  };
+
+  const toggleManual = (field: string) => {
+    const manualFields = form.manualFields || [];
+    const isManual = manualFields.includes(field);
+    setForm(prev => ({
+      ...prev,
+      [field]: '',
+      manualFields: isManual ? manualFields.filter(f => f !== field) : [...manualFields, field]
+    }));
   };
 
   const handleSubmit = async () => {
@@ -103,9 +112,10 @@ export default function OnSale() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#fff9fb]">
-                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Service</th>
+                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Category</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Service</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Duration</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Category</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Type</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Original Price</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Discount</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Sale Price</th>
@@ -133,21 +143,26 @@ export default function OnSale() {
                 </tr>
               ) : (
                 discounts.map((d) => (
-                  <tr key={d.id} className="hover:bg-pink-50/10 transition-colors group">
+                  <tr key={d.id} className="hover:bg-pink-50/10 transition-colors group text-center">
                     <td className="px-8 py-5">
-                       <div className="flex items-center gap-3">
+                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {d.serviceCategory}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                       <div className="flex items-center justify-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996] font-bold text-[10px]">
                           {d.service.charAt(0)}
                         </div>
                         <span className="font-bold text-slate-700 text-sm">{d.service}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-6 py-5">
                       <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-pink-50 truncate block">
                         {d.duration}
                       </span>
                     </td>
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-6 py-5">
                        <span className="text-[10px] font-bold text-[#ee6996] uppercase tracking-wider bg-pink-50 px-2 rounded-lg truncate">
                         {d.category}
                       </span>
@@ -196,53 +211,125 @@ export default function OnSale() {
             </div>
 
             <div className="px-10 py-6 space-y-5 max-h-[65vh] overflow-y-auto">
-              
+                         {/* serviceCategory */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Category <span className="text-[#ee6996]">*</span></label>
+                  <button type="button" onClick={() => toggleManual('serviceCategory')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                    {form.manualFields?.includes('serviceCategory') ? 'List' : 'Type'}
+                  </button>
+                </div>
+                {form.manualFields?.includes('serviceCategory') ? (
+                  <input type="text" placeholder="Type Category" value={form.serviceCategory} onChange={(e) => handleFormChange('serviceCategory', e.target.value)} className={inputCls} />
+                ) : (
+                  <div className="relative">
+                    <select value={form.serviceCategory} onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'other (custom category)') {
+                          toggleManual('serviceCategory');
+                          handleFormChange('service', '');
+                        } else {
+                          handleFormChange('serviceCategory', val);
+                          handleFormChange('service', '');
+                        }
+                    }} className={selectCls}>
+                      <option value="">Select Category</option>
+                      <option value="entertainment">entertainment</option>
+                      <option value="educational">educational</option>
+                      <option value="editing">editing</option>
+                      <option value="other services">other services</option>
+                      <option value="other (custom category)">other (custom category)</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                )}
+              </div>
+
               {/* Service */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Service</label>
-                <div className="relative">
-                  <select 
-                    value={form.service}
-                    onChange={e => handleFormChange('service', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Select service</option>
-                    {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Service <span className="text-[#ee6996]">*</span></label>
+                  <button type="button" onClick={() => toggleManual('service')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                    {form.manualFields?.includes('service') ? 'List' : 'Type'}
+                  </button>
                 </div>
+                {form.manualFields?.includes('service') ? (
+                  <input type="text" placeholder="Type Service" value={form.service} onChange={(e) => handleFormChange('service', e.target.value)} className={inputCls} />
+                ) : (
+                  <div className="relative">
+                    <select value={form.service} onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'other (custom service)') {
+                          toggleManual('service');
+                        } else {
+                          handleFormChange('service', val);
+                        }
+                      }} className={selectCls}>
+                      <option value="">Select Service</option>
+                      {((SERVICE_CATEGORIES as any)[form.serviceCategory] || []).map((s: string) => <option key={s} value={s}>{s}</option>)}
+                      <option value="other (custom service)">other (custom service)</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                )}
               </div>
 
               {/* Duration */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Duration</label>
-                <div className="relative">
-                  <select 
-                    value={form.duration}
-                    onChange={e => handleFormChange('duration', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Select duration</option>
-                    {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Duration <span className="text-[#ee6996]">*</span></label>
+                  <button type="button" onClick={() => toggleManual('duration')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                    {form.manualFields?.includes('duration') ? 'List' : 'Type'}
+                  </button>
                 </div>
+                {form.manualFields?.includes('duration') ? (
+                  <input type="text" placeholder="Type Duration" value={form.duration} onChange={(e) => handleFormChange('duration', e.target.value)} className={inputCls} />
+                ) : (
+                  <div className="relative">
+                    <select value={form.duration} onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'other (custom duration)') {
+                          toggleManual('duration');
+                        } else {
+                          handleFormChange('duration', val);
+                        }
+                      }} className={selectCls}>
+                      <option value="">Select Duration</option>
+                      {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      <option value="other (custom duration)">other (custom duration)</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                )}
               </div>
 
-              {/* Category */}
+              {/* Category (Item Category) */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Category</label>
-                <div className="relative">
-                  <select 
-                    value={form.category}
-                    onChange={e => handleFormChange('category', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Select category</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Item Category <span className="text-[#ee6996]">*</span></label>
+                  <button type="button" onClick={() => toggleManual('category')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                    {form.manualFields?.includes('category') ? 'List' : 'Type'}
+                  </button>
                 </div>
+                {form.manualFields?.includes('category') ? (
+                  <input type="text" placeholder="Type Type" value={form.category} onChange={(e) => handleFormChange('category', e.target.value)} className={inputCls} />
+                ) : (
+                  <div className="relative">
+                    <select value={form.category} onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'other (custom item category)') {
+                          toggleManual('category');
+                        } else {
+                          handleFormChange('category', val);
+                        }
+                      }} className={selectCls}>
+                      <option value="">Select Type</option>
+                      {STOCK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value="other (custom item category)">other (custom item category)</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                )}
               </div>
 
               {/* Prices grid */}

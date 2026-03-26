@@ -59,22 +59,25 @@ export default function Salary() {
     const breakdown = approvedSales.map(s => {
       const matchingCapital = capitals.find(c => 
         c.service.toLowerCase() === s.service.toLowerCase() &&
-        c.duration.toLowerCase() === (s as any).duration?.toLowerCase() &&
-        c.category.toLowerCase() === s.serviceCategory.toLowerCase()
+        c.serviceCategory?.toLowerCase() === s.serviceCategory?.toLowerCase() &&
+        c.duration.toLowerCase() === s.duration?.toLowerCase() &&
+        c.category.toLowerCase() === s.category?.toLowerCase()
       );
       
-      const capPrice = matchingCapital ? matchingCapital.price : 0;
-      const profit = s.totalPrice - capPrice;
+      const capPrice = matchingCapital ? (Number(matchingCapital.price) || 0) : 0;
+      const salesPrice = Number(s.totalPrice) || 0;
+      const profit = salesPrice - capPrice;
       const rate = getTierRate(profit);
       const salary = profit * rate;
 
-      totalGross += s.totalPrice;
+      totalGross += salesPrice;
       totalCapital += capPrice;
       totalProfit += profit;
       totalSalary += salary;
 
       return {
         ...s,
+        totalPrice: salesPrice, // Ensure numeric
         profit,
         salary
       };

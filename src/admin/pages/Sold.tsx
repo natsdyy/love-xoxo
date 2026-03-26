@@ -16,10 +16,12 @@ import {
 import { subscribeToSales, addSale, deleteSale, clearAllSales, type Sale } from '../../lib/transactionService';
 import { getAllUsers } from '../../lib/firebaseAuth';
 import { toast } from 'react-toastify';
+import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 
 interface SaleItem {
   id: string;
   service: string;
+  serviceCategory: string;
   duration: string;
   category: string;
   devices: string;
@@ -29,7 +31,6 @@ interface SaleItem {
   manualFields?: string[];
 }
 
-// Custom dropdown that uses fixed positioning to escape overflow-y-auto containers
 function CustomSelect({
   value,
   onChange,
@@ -97,19 +98,18 @@ function CustomSelect({
             width: coords.width,
             zIndex: 9999,
           }}
-          className="bg-white border border-pink-100 rounded-2xl shadow-xl py-1 max-h-52 overflow-y-auto"
+          className="bg-white border border-pink-100 rounded-2xl shadow-xl py-1 max-h-52 overflow-y-auto shadow-pink-200/50"
         >
           {options.map((opt) => (
             <button
               key={opt.value}
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors hover:bg-pink-50 hover:text-[#ee6996] ${
-                value === opt.value ? 'text-[#ee6996] bg-pink-50/60' : 'text-slate-700'
+              className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors hover:bg-pink-50 ${
+                value === opt.value ? 'bg-pink-50 text-[#ee6996]' : 'text-slate-600'
               }`}
             >
               {opt.label}
@@ -132,17 +132,15 @@ export default function Sold() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Form states
   const [selectedAdminName, setSelectedAdminName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [soldDate, setSoldDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<SaleItem[]>([
-    { id: '1', service: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }
+    { id: '1', service: '', serviceCategory: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }
   ]);
 
-  // Options
-  const categoryOptions = [
+  const serviceCategoryOptions = [
     { label: 'entertainment', value: 'entertainment' },
     { label: 'educational', value: 'educational' },
     { label: 'editing', value: 'editing' },
@@ -150,24 +148,14 @@ export default function Sold() {
     { label: 'other (custom category)', value: 'other (custom category)' },
   ];
 
-  const getServiceOptions = (category: string) => {
-    const map: Record<string, string[]> = {
-      entertainment: ['netflix', 'disney', 'hbo max', 'viu', 'prime video', 'vivaone', 'vivamax', 'loklok basic', 'loklok standard', 'youtube', 'crunchyroll', 'iwanttfc', 'spotify', 'other (custom category)'],
-      educational: ['grammarly', 'quizlet', 'quillbot', 'scribd', 'studocu', 'chatgpt', 'ms365', 'gemini ai', 'other (custom category)'],
-      editing: ['canva', 'capcut', 'picsart', 'other (custom category)'],
-      'other services': ['telegram premium', 'domain making', 'other (custom category)'],
-    };
-    const list = map[category] || ['other (custom category)'];
-    return list.map(s => ({ label: s, value: s }));
+  const getServiceOptions = (cat: string) => {
+    const list = (SERVICE_CATEGORIES as any)[cat] || [];
+    return [...list.map((s: string) => ({ label: s, value: s })), { label: 'other (custom service)', value: 'other (custom service)' }];
   };
 
-  const durationOptions = [
-    '1 month', '2 months', '3 months', '4 months', '5 months', '6 months',
-    '7 months', '8 months', '9 months', '10 months', '11 months', '1 year',
-    'lifetime', 'other (custom category)'
-  ].map(d => ({ label: d, value: d }));
+  const durationOptions = DURATIONS.map(d => ({ label: d, value: d })).concat([{ label: 'other (custom duration)', value: 'other (custom duration)' }]);
+  const itemCategoryOptions = STOCK_CATEGORIES.map(c => ({ label: c, value: c })).concat([{ label: 'other (custom item category)', value: 'other (custom item category)' }]);
 
-  // Fetch real-time sales and admins
   useEffect(() => {
     const unsubscribe = subscribeToSales((data) => {
       setTransactions(data);
@@ -178,13 +166,33 @@ export default function Sold() {
       const users = await getAllUsers();
       setAdmins(users.map(u => ({ id: u.id, displayName: u.displayName, username: u.username })));
     };
-    fetchAdmins();
 
+    fetchAdmins();
     return () => unsubscribe();
   }, []);
 
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to clear all sales logs? This action is irreversible.')) return;
+    try {
+      await clearAllSales();
+      toast.success('All logs cleared!');
+    } catch (e) {
+      toast.error('Failed to clear logs');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this record?')) return;
+    try {
+      await deleteSale(id);
+      toast.success('Record deleted');
+    } catch (e) {
+      toast.error('Failed to delete');
+    }
+  };
+
   const addItem = () => {
-    setItems([...items, { id: Math.random().toString(36).substr(2, 9), service: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
+    setItems([...items, { id: Math.random().toString(36).substr(2, 9), service: '', serviceCategory: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
   };
 
   const removeItem = (id: string) => {
@@ -219,15 +227,22 @@ export default function Sold() {
     setIsSubmitting(true);
     try {
       for (const item of items) {
-        const priceNum = parseFloat(item.price) || 0;
-        const qtyNum = parseInt(item.qty) || 1;
-        const discountNum = parseFloat(item.discount || '0') || 0;
+        if (!item.service || !item.serviceCategory || !item.duration || !item.category) {
+            toast.error('Please fill in all item fields');
+            setIsSubmitting(false);
+            return;
+        }
+        const priceNum = Number(item.price) || 0;
+        const qtyNum = Number(item.qty) || 1;
+        const discountNum = Number(item.discount) || 0;
         const total = (priceNum * qtyNum) - discountNum;
 
         await addSale({
           stockId: 'manual', 
           service: item.service,
-          serviceCategory: item.category,
+          serviceCategory: item.serviceCategory,
+          duration: item.duration,
+          category: item.category,
           email: customerEmail,
           buyerName: buyerName,
           quantity: qtyNum,
@@ -241,7 +256,7 @@ export default function Sold() {
       }
       toast.success('Sales added successfully!');
       setIsModalOpen(false);
-      setItems([{ id: '1', service: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
+      setItems([{ id: '1', service: '', serviceCategory: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
       setCustomerEmail('');
       setBuyerName('');
     } catch (error) {
@@ -252,50 +267,22 @@ export default function Sold() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this record?')) {
-      try {
-        await deleteSale(id);
-        toast.success('Record deleted');
-      } catch (error) {
-        toast.error('Failed to delete record');
-      }
-    }
-  };
-
-  const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to CLEAR ALL logs? This cannot be undone.')) {
-      try {
-        await clearAllSales();
-        toast.success('All logs cleared');
-      } catch (error) {
-        toast.error('Failed to clear logs');
-      }
-    }
-  };
-
   const filteredTransactions = transactions.filter(tx => 
-    (tx.service || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (tx.buyerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (tx.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+    tx.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.adminName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.buyerName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
-  const paginatedTransactions = filteredTransactions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.totalPrice || 0), 0);
-  const topSeller = transactions.reduce((acc, tx) => {
+  const totalRevenue = filteredTransactions.reduce((acc, tx) => acc + (tx.totalPrice || 0), 0);
+  const sellerSummary = filteredTransactions.reduce((acc: any, tx) => {
     acc[tx.adminName] = (acc[tx.adminName] || 0) + 1;
     return acc;
-  }, {} as Record<string, number>);
-  const topSellerName = Object.entries(topSeller).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+  }, {});
+  const topSellerName = Object.entries(sellerSummary).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || '---';
+
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="p-6">
@@ -377,7 +364,7 @@ export default function Sold() {
                 <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Service</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Email</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Buyer</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Category</th>
+                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Duration</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Price</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Sold By</th>
                 <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Date</th>
@@ -397,23 +384,26 @@ export default function Sold() {
                         <div className="w-8 h-8 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996] font-bold text-[10px]">
                           {tx.service.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-bold text-slate-700 text-sm">{tx.service}</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-700 text-sm">{tx.service}</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{tx.serviceCategory} / {tx.category}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="text-xs font-bold text-slate-500">{tx.email}</span>
+                      <span className="text-xs text-slate-500 font-medium">{tx.email}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="text-xs font-bold text-slate-700">{tx.buyerName}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{tx.buyerName || '---'}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="text-[10px] font-bold text-[#ee6996] bg-pink-50 px-2 py-1 rounded-lg uppercase">{tx.serviceCategory}</span>
+                      <span className="text-xs font-semibold text-slate-400">{tx.duration || '---'}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="text-sm font-black text-slate-800">₱{(tx.totalPrice || 0).toLocaleString()}</span>
+                      <span className="text-sm font-black text-emerald-500">₱{tx.totalPrice.toLocaleString()}</span>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">
+                      <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase">
                         <User size={10} />
                         {tx.adminName}
                       </div>
@@ -482,7 +472,7 @@ export default function Sold() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+          <div className="relative bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
             <div className="flex items-center justify-between px-8 py-6 border-b border-pink-50 bg-white">
               <h2 className="text-xl font-bold text-gray-800">Add Manual Sale</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-pink-50 rounded-full text-gray-400 hover:text-pink-500 transition-colors">
@@ -542,24 +532,31 @@ export default function Sold() {
                       </button>
                     )}
 
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="space-y-1.5 col-span-1 text-center">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+                      
+                      {/* Service Category */}
+                      <div className="space-y-1.5 text-center">
                         <div className="flex justify-between items-center px-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">Category *</label>
-                          <button type="button" onClick={() => toggleManual(item.id, 'category')} className="text-[9px] font-black text-pink-500 uppercase tracking-tighter">
-                            {item.manualFields?.includes('category') ? 'List' : 'Type'}
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Category *</label>
+                          <button type="button" onClick={() => toggleManual(item.id, 'serviceCategory')} className="text-[9px] font-black text-pink-500 uppercase tracking-tighter">
+                            {item.manualFields?.includes('serviceCategory') ? 'List' : 'Type'}
                           </button>
                         </div>
-                        {item.manualFields?.includes('category') ? (
-                          <input type="text" placeholder="Type Category" value={item.category} onChange={(e) => updateItem(item.id, 'category', e.target.value)} className="w-full bg-pink-50/20 border-2 border-[#ee6996]/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all font-bold text-slate-700" />
+                        {item.manualFields?.includes('serviceCategory') ? (
+                          <input type="text" placeholder="Type Category" value={item.serviceCategory} onChange={(e) => updateItem(item.id, 'serviceCategory', e.target.value)} className="w-full bg-pink-50/20 border-2 border-[#ee6996]/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all font-bold text-slate-700" />
                         ) : (
-                          <CustomSelect value={item.category} onChange={(val) => updateItem(item.id, 'category', val)} options={categoryOptions} />
+                          <CustomSelect value={item.serviceCategory} onChange={(val) => {
+                              updateItem(item.id, 'serviceCategory', val);
+                              updateItem(item.id, 'service', '');
+                              if (val === 'other (custom category)') toggleManual(item.id, 'serviceCategory');
+                          }} options={serviceCategoryOptions} />
                         )}
                       </div>
 
-                      <div className="space-y-1.5 col-span-1 text-center">
+                       {/* Service */}
+                      <div className="space-y-1.5 text-center">
                         <div className="flex justify-between items-center px-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">Service *</label>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Service *</label>
                           <button type="button" onClick={() => toggleManual(item.id, 'service')} className="text-[9px] font-black text-pink-500 uppercase tracking-tighter">
                             {item.manualFields?.includes('service') ? 'List' : 'Type'}
                           </button>
@@ -567,13 +564,17 @@ export default function Sold() {
                         {item.manualFields?.includes('service') ? (
                           <input type="text" placeholder="Type Service" value={item.service} onChange={(e) => updateItem(item.id, 'service', e.target.value)} className="w-full bg-pink-50/20 border-2 border-[#ee6996]/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all font-bold text-slate-700" />
                         ) : (
-                          <CustomSelect value={item.service} onChange={(val) => updateItem(item.id, 'service', val)} options={getServiceOptions(item.category)} />
+                          <CustomSelect value={item.service} onChange={(val) => {
+                              updateItem(item.id, 'service', val);
+                              if (val === 'other (custom service)') toggleManual(item.id, 'service');
+                          }} options={getServiceOptions(item.serviceCategory)} />
                         )}
                       </div>
 
+                      {/* Duration */}
                       <div className="space-y-1.5 text-center">
                         <div className="flex justify-between items-center px-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">Duration *</label>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Duration *</label>
                           <button type="button" onClick={() => toggleManual(item.id, 'duration')} className="text-[9px] font-black text-pink-500 uppercase tracking-tighter">
                             {item.manualFields?.includes('duration') ? 'List' : 'Type'}
                           </button>
@@ -581,7 +582,28 @@ export default function Sold() {
                         {item.manualFields?.includes('duration') ? (
                           <input type="text" placeholder="Type Duration" value={item.duration} onChange={(e) => updateItem(item.id, 'duration', e.target.value)} className="w-full bg-pink-50/20 border-2 border-[#ee6996]/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all font-bold text-slate-700" />
                         ) : (
-                          <CustomSelect value={item.duration} onChange={(val) => updateItem(item.id, 'duration', val)} options={durationOptions} />
+                          <CustomSelect value={item.duration} onChange={(val) => {
+                              updateItem(item.id, 'duration', val);
+                              if (val === 'other (custom duration)') toggleManual(item.id, 'duration');
+                          }} options={durationOptions} />
+                        )}
+                      </div>
+
+                      {/* Item Category (Solo/Shared) */}
+                      <div className="space-y-1.5 text-center">
+                        <div className="flex justify-between items-center px-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Item Category *</label>
+                          <button type="button" onClick={() => toggleManual(item.id, 'category')} className="text-[9px] font-black text-pink-500 uppercase tracking-tighter">
+                            {item.manualFields?.includes('category') ? 'List' : 'Type'}
+                          </button>
+                        </div>
+                        {item.manualFields?.includes('category') ? (
+                          <input type="text" placeholder="Type Type" value={item.category} onChange={(e) => updateItem(item.id, 'category', e.target.value)} className="w-full bg-pink-50/20 border-2 border-[#ee6996]/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] transition-all font-bold text-slate-700" />
+                        ) : (
+                          <CustomSelect value={item.category} onChange={(val) => {
+                              updateItem(item.id, 'category', val);
+                              if (val === 'other (custom item category)') toggleManual(item.id, 'category');
+                          }} options={itemCategoryOptions} />
                         )}
                       </div>
 
@@ -596,33 +618,32 @@ export default function Sold() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Qty *</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Quantity *</label>
                         <input type="number" value={item.qty} onChange={(e) => updateItem(item.id, 'qty', e.target.value)} className="w-full bg-pink-50/20 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] font-bold text-slate-700" />
                       </div>
 
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Discount (₱)</label>
-                        <input type="number" value={item.discount} onChange={(e) => updateItem(item.id, 'discount', e.target.value)} className="w-full bg-pink-50/20 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] text-pink-500 font-bold" />
-                      </div>
-                      
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Total</label>
-                        <div className="w-full bg-pink-50/10 border-2 border-transparent px-4 py-3 text-xs font-black text-slate-800">
-                          ₱{((parseFloat(item.price) * parseInt(item.qty)) - parseFloat(item.discount || '0')).toLocaleString()}
-                        </div>
+                        <input type="number" value={item.discount} onChange={(e) => updateItem(item.id, 'discount', e.target.value)} className="w-full bg-pink-50/20 border-2 border-pink-100/50 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-[#ee6996] text-red-500 font-bold" />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-12">
+              <div className="mt-12 flex gap-4">
+                <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-500 py-4 rounded-[1.5rem] font-bold transition-all active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
                 <button 
                   onClick={handleAddSale}
                   disabled={isSubmitting}
-                  className={`w-full bg-gradient-to-r from-[#ee6996] to-[#fc6797] hover:from-[#d55a84] hover:to-[#e15c87] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-pink-200 transition-all hover:scale-[1.01] active:scale-[0.99] ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className="flex-[2] bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] text-white py-4 rounded-[1.5rem] font-black text-lg shadow-xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? 'Adding...' : 'Add Sale'}
+                  {isSubmitting ? 'Adding...' : 'Confirm Sales'}
                 </button>
               </div>
             </div>

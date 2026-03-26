@@ -7,6 +7,7 @@ interface ItemEntry {
   id: number;
   category: string;
   devices: string;
+  quantity: string;
   price: string;
   notes: string;
   slotEntries: Array<{ id: number; qty: number; slot: string; pin: string }>;
@@ -100,7 +101,8 @@ export default function NewStocks() {
     { 
       id: 1, 
       category: '', 
-      devices: '', 
+      devices: '1', 
+      quantity: '1',
       price: '', 
       notes: '',
       slotEntries: []
@@ -120,7 +122,8 @@ export default function NewStocks() {
       {
         id: Date.now(),
         category: '',
-        devices: '',
+        devices: '1',
+        quantity: '1',
         price: '',
         notes: '',
         slotEntries: []
@@ -221,10 +224,10 @@ export default function NewStocks() {
           email: email,
           password: password,
           category: item.category,
-          quantity: parseInt(item.devices) || 1,
+          quantity: parseInt(item.quantity) || 1,
           price: parseFloat(item.price),
-          devices: item.devices ? item.devices.split(',').map(d => d.trim()) : [],
-          slots: slots.length > 0 ? slots : undefined,
+          devices: [item.devices || '1'],
+          ...(slots.length > 0 ? { slots } : {}),
           notes: item.notes,
           status: 'available',
           createdBy: username,
@@ -249,7 +252,8 @@ export default function NewStocks() {
         { 
           id: 1, 
           category: '', 
-          devices: '', 
+          devices: '1', 
+          quantity: '1',
           price: '', 
           notes: '',
           slotEntries: []
@@ -376,7 +380,7 @@ export default function NewStocks() {
                       value={service}
                       onChange={(e) => {
                         setService(e.target.value);
-                        if (e.target.value === 'other (custom category)') {
+                        if (e.target.value === 'other (custom service)') {
                           toggleManual('service');
                         }
                       }}
@@ -386,7 +390,7 @@ export default function NewStocks() {
                       {category && services[category]?.map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
-                      {(!category || category === 'other (custom category)') && <option value="other (custom category)">other (custom category)</option>}
+                      {(!category || category === 'other (custom category)') && <option value="other (custom service)">other (custom service)</option>}
                     </select>
                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   </div>
@@ -425,7 +429,7 @@ export default function NewStocks() {
                       value={duration}
                       onChange={(e) => {
                         setDuration(e.target.value);
-                        if (e.target.value === 'other (custom category)') {
+                        if (e.target.value === 'other (custom duration)') {
                           toggleManual('duration');
                         }
                       }}
@@ -435,6 +439,7 @@ export default function NewStocks() {
                       {DURATIONS.map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
+                      <option value="other (custom duration)">other (custom duration)</option>
                     </select>
                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   </div>
@@ -548,30 +553,85 @@ export default function NewStocks() {
 
                   {/* Devices & Price */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                        Devices
+                    <div className="space-y-3">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Number of Devices <span className="text-[#ee6996]">*</span>
                       </label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g., mobile, tablet, pc (comma-separated)"
-                        value={item.devices}
-                        onChange={(e) => updateItem(item.id, 'devices', e.target.value)}
-                        className="w-full bg-white border border-pink-100 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                      />
+                      <div className="flex flex-wrap gap-2">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => {
+                              updateItem(item.id, 'devices', num.toString());
+                              if (manualFields.includes(`item_devices_${item.id}`)) {
+                                toggleManual(`item_devices_${item.id}`);
+                              }
+                            }}
+                            className={`w-10 h-10 rounded-xl font-bold text-sm transition-all border-2 ${
+                              item.devices === num.toString() && !manualFields.includes(`item_devices_${item.id}`)
+                                ? 'bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm shadow-pink-100'
+                                : 'bg-white border-pink-50 text-slate-400 hover:border-pink-200'
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!manualFields.includes(`item_devices_${item.id}`)) {
+                              toggleManual(`item_devices_${item.id}`);
+                              updateItem(item.id, 'devices', '');
+                            }
+                          }}
+                          className={`px-4 h-10 rounded-xl font-bold text-xs transition-all border-2 flex items-center gap-2 ${
+                            manualFields.includes(`item_devices_${item.id}`)
+                              ? 'bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm shadow-pink-100'
+                              : 'bg-white border-pink-50 text-slate-400 hover:border-pink-200'
+                          }`}
+                        >
+                          Other
+                          {manualFields.includes(`item_devices_${item.id}`) && (
+                            <input 
+                              type="number"
+                              placeholder="0"
+                              value={item.devices}
+                              onChange={(e) => updateItem(item.id, 'devices', e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-12 bg-transparent border-b border-[#ee6996] text-center focus:outline-none font-black text-[#ee6996]"
+                              autoFocus
+                            />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1">
-                        Price (₱) <span className="text-red-500">*</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        placeholder="0.00"
-                        value={item.price}
-                        onChange={(e) => updateItem(item.id, 'price', e.target.value)}
-                        step="0.01"
-                        className={`w-full bg-white rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.price ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                          Quantity <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          type="number" 
+                          placeholder="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
+                          className={`w-full bg-white rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.quantity ? 'border-2 border-red-500 focus:ring-red-500/20 shadow-inner' : 'border-2 border-pink-50 focus:ring-pink-500/20 focus:border-[#ee6996]'}`}
+                        />
+                      </div>
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                          Price (₱) <span className="text-red-500">*</span>
+                        </label>
+                        <input 
+                          type="number" 
+                          placeholder="0.00"
+                          value={item.price}
+                          onChange={(e) => updateItem(item.id, 'price', e.target.value)}
+                          step="0.01"
+                          className={`w-full bg-white rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.price ? 'border-2 border-red-500 focus:ring-red-500/20 shadow-inner' : 'border-2 border-pink-50 focus:ring-pink-500/20 focus:border-[#ee6996]'}`}
+                        />
+                      </div>
                     </div>
                   </div>
 

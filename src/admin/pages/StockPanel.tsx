@@ -1,56 +1,39 @@
 import { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Eye, ChevronRight, X } from 'lucide-react';
+import { ChevronDown, Upload, Package, ShoppingCart, Eye } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { subscribeToStocks, updateRelatedStocks } from '../../lib/stockService';
+import { subscribeToStocks, updateRelatedStocks, type Stock } from '../../lib/stockService';
 import { addSale, subscribeToSales, type Sale } from '../../lib/transactionService';
-
-interface Stock {
-  id: string;
-  service: string;
-  serviceCategory: string;
-  duration: string;
-  email: string;
-  password: string;
-  category: string;
-  quantity: number;
-  price: number;
-  devices?: string[];
-  slots?: Array<{ slot: string; pin: string }>;
-  notes?: string;
-  status: string;
-  createdBy?: string;
-  createdAt?: any;
-}
+import { storage } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function StockPanel() {
   const username = localStorage.getItem('username') || 'admin';
   const [stocks, setStocks] = useState<Stock[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [selectedStockId, setSelectedStockId] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [salePrice, setSalePrice] = useState('');
+  
+  // Form State
+  const [status, setStatus] = useState<'sold' | 'reserved'>('sold');
+  const [device, setDevice] = useState('');
+  const [category, setCategory] = useState('');
   const [buyerName, setBuyerName] = useState('');
-  const [saleNotes, setSaleNotes] = useState('');
-  const [saleStatus, setSaleStatus] = useState<'SOLD' | 'RESERVED'>('SOLD');
-  const [selectedDevice, setSelectedDevice] = useState('');
-  const [selectedSlot, setSelectedSlot] = useState<{slot: string, pin: string} | null>(null);
-  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
   const [quantity, setQuantity] = useState('1');
-  const [errors, setErrors] = useState<string[]>([]);
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
+  const [saleNotes, setSaleNotes] = useState('');
 
   // Load data from Firestore
   useEffect(() => {
     setLoading(true);
     const unsubStocks = subscribeToStocks((firebaseStocks) => {
-      // Filter for available stocks for the selling form
       const available = (firebaseStocks as Stock[]).filter(s => s.status === 'available');
       setStocks(available);
       setLoading(false);
     });
 
     const unsubSales = subscribeToSales((firebaseSales) => {
-      setSales(firebaseSales.slice(0, 5)); // Just show last 5
+      setRecentSales(firebaseSales.slice(0, 5));
     });
 
     return () => {
@@ -61,64 +44,74 @@ export default function StockPanel() {
 
   const selectedStock = stocks.find(s => s.id === selectedStockId);
 
-  const handleMarkAsSold = async () => {
-    const newErrors: string[] = [];
-    if (!selectedStockId) newErrors.push('stock');
-    if (!buyerName) newErrors.push('buyer');
-    if (selectedStock?.devices?.length && !selectedDevice) newErrors.push('device');
-    if (selectedStock?.slots?.length && !selectedSlot) newErrors.push('slot');
-    if (receiptFiles.length === 0) newErrors.push('receipt');
+  // Initialize form when stock is selected
+  useEffect(() => {
+    if (selectedStock) {
+      const maxDevices = parseInt(selectedStock.devices?.[0] || '1');
+      setDevice(`${maxDevices} Device${maxDevices > 1 ? 's' : ''}`);
+      setCategory(selectedStock.category || 'solo profile');
+    }
+  }, [selectedStock]);
 
-    if (newErrors.length > 0) {
-      setErrors(newErrors);
-      toast.error('Please fill in all required fields');
-      setTimeout(() => setErrors([]), 2000);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setReceiptFiles(Array.from(e.target.files).slice(0, 10));
+    }
+  };
+
+  const uploadReceipts = async (): Promise<string[]> => {
+    const urls: string[] = [];
+    for (const file of receiptFiles) {
+      const storageRef = ref(storage, `receipts/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      urls.push(url);
+    }
+    return urls;
+  };
+
+  const handleSubmitApproval = async () => {
+    if (!selectedStock || !buyerName || !quantity || receiptFiles.length === 0) {
+      toast.error('Please fill in all required fields (marked *) and upload at least one receipt');
       return;
     }
 
     setSubmitting(true);
     try {
-      const saleAmount = parseFloat(salePrice) || 0;
-
-      if (!selectedStock) return;
-
+      const receiptUrls = await uploadReceipts();
+      
       // Add sale record
       await addSale({
-        stockId: selectedStock.id,
+        stockId: selectedStock.id!,
         service: selectedStock.service,
         serviceCategory: selectedStock.serviceCategory,
+        duration: selectedStock.duration,
+        category: category,
         email: selectedStock.email,
         buyerName: buyerName,
         quantity: parseInt(quantity) || 1,
         price: selectedStock.price,
-        totalPrice: saleAmount,
+        totalPrice: selectedStock.price * (parseInt(quantity) || 1),
         adminName: username,
-        status: saleStatus === 'SOLD' ? 'approved' : 'pending',
-        notes: `
-          ${selectedDevice ? `Device: ${selectedDevice}` : ''}
-          ${selectedSlot ? `Slot: ${selectedSlot.slot} (Pin: ${selectedSlot.pin})` : ''}
-          ${saleNotes}
-        `.trim(),
+        status: status === 'sold' ? 'approved' : 'pending',
+        receipt: receiptUrls,
+        notes: `Device: ${device}${saleNotes ? ` - ${saleNotes}` : ''}`,
         createdAt: new Date(),
       });
 
-      // Update stock status (Shared quantity logic)
+      // Update related stocks (Shared quantity logic)
       await updateRelatedStocks(selectedStock.email, selectedStock.password, {
-        status: saleStatus === 'SOLD' ? 'sold' : 'reserved',
+        status: status === 'sold' ? 'sold' : 'reserved',
       });
 
-      toast.success(saleStatus === 'SOLD' ? '✅ Stock marked as sold!' : '⏳ Stock reserved!');
+      toast.success(status === 'sold' ? '✅ Stock marked as sold!' : '⏳ Stock reserved!');
 
       // Reset form
       setSelectedStockId('');
-      setSalePrice('');
       setBuyerName('');
-      setSaleNotes('');
-      setSaleStatus('SOLD');
-      setSelectedDevice('');
-      setSelectedSlot(null);
       setQuantity('1');
       setReceiptFiles([]);
+      setSaleNotes('');
     } catch (error) {
       console.error('Error processing sale:', error);
       toast.error('❌ Failed to process sale');
@@ -127,368 +120,271 @@ export default function StockPanel() {
     }
   };
 
-  const categories = ['entertainment', 'educational', 'editing', 'other services'];
+  const serviceCategories = ['entertainment', 'educational', 'editing', 'other services'];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       
-      {/* 1. Stock Availability Card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-pink-50 overflow-hidden">
-        <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center text-[#ee6996]">
-                <Package size={20} strokeWidth={2.5} />
-              </div>
-              <h2 className="text-xl font-bold text-[#4a1d4a]">Stock Availability</h2>
+      {/* 1. Stock Availability Summary */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
+        <div className="p-10">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center text-[#ee6996]">
+              <Package size={24} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">Stock Availability</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 italic">Real-time inventory overview</p>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {categories.map(cat => {
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {serviceCategories.map(cat => {
               const count = stocks.filter(s => s.serviceCategory === cat).length;
-              if (count === 0) return null;
               return (
-                <div key={cat} className="bg-pink-50/30 rounded-2xl p-4 border border-pink-50 flex items-center justify-between group hover:bg-pink-50 transition-colors">
-                  <div>
-                    <p className="text-[10px] font-black text-[#ee6996] uppercase tracking-widest mb-1">{cat}</p>
-                    <p className="text-sm font-bold text-slate-700">{count} services available</p>
-                  </div>
+                <div key={cat} className="bg-pink-50/20 rounded-2xl p-5 border border-pink-50/50 hover:bg-pink-50 transition-all group">
+                  <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-1">{cat}</p>
+                  <p className="text-lg font-black text-slate-700">{count}</p>
+                  <p className="text-[9px] font-bold text-slate-400">Available</p>
                 </div>
               );
             })}
-            {stocks.length === 0 && !loading && (
-              <p className="text-sm text-slate-400 italic col-span-3 text-center py-4">No available stocks</p>
-            )}
-            {loading && (
-              <p className="text-sm text-pink-400 animate-pulse col-span-3 text-center py-4 font-bold uppercase tracking-widest">Loading...</p>
-            )}
           </div>
-        </div>
-        
-        <div className="px-8 py-5 bg-[#fff9fb] border-t border-pink-50 flex justify-between items-center">
-          <span className="text-xs font-black text-[#ee6996] uppercase tracking-widest">Total Available Stock</span>
-          <span className="text-sm font-black text-slate-700">
-            {stocks.length} items
-          </span>
         </div>
       </div>
 
-      {/* 2. Sell Stock Card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-pink-50 p-8">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center text-[#ee6996]">
-            <ShoppingCart size={20} strokeWidth={2.5} />
+      {/* 2. Sell Stock Panel */}
+      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-pink-100/50 border border-pink-50 overflow-hidden">
+        <div className="px-10 py-8 border-b border-pink-50/50 text-center">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center text-[#ee6996]">
+              <ShoppingCart size={20} strokeWidth={2.5} />
+            </div>
+            <h1 className="text-2xl font-black text-[#ee6996] tracking-tight">Sell Stock</h1>
           </div>
-          <h2 className="text-xl font-bold text-[#4a1d4a]">Sell Stock</h2>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] italic">Submit sales for approval or mark as sold</p>
         </div>
 
-        <div className="space-y-6">
-          {/* Select Stock */}
-          <div className="space-y-4">
-            <label className="text-xs font-bold text-slate-700 ml-1">Stock Email</label>
-            <div className="relative group">
-              <select 
-                value={selectedStockId}
-                onChange={(e) => {
-                  setSelectedStockId(e.target.value);
-                  const s = stocks.find(x => x.id === e.target.value);
-                  if (s) {
-                    setSalePrice(s.price.toString());
-                    setSelectedDevice('');
-                    setSelectedSlot(null);
-                  }
-                }}
-                className={`w-full px-5 py-4 rounded-[1.25rem] border-2 focus:outline-none focus:border-[#ee6996] bg-white text-sm font-bold text-slate-600 appearance-none cursor-pointer shadow-sm transition-all ${
-                  errors.includes('stock') ? 'border-error animate-shake' : 'border-pink-100'
-                }`}
-              >
-                <option value="">Select an account...</option>
-                {categories.map(cat => {
-                  const catStocks = stocks.filter(s => s.serviceCategory === cat);
-                  if (catStocks.length === 0) return null;
-                  return (
-                    <optgroup key={cat} label={cat.toUpperCase()}>
-                      {catStocks.map(stock => (
-                        <option key={stock.id} value={stock.id}>
-                          {stock.email} ({stock.service} - {stock.duration})
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-pink-300">
-                <ChevronRight className="rotate-90" size={18} />
-              </div>
+        <div className="p-10 space-y-8">
+          {loading ? (
+             <div className="flex items-center justify-center py-12">
+               <div className="w-10 h-10 rounded-full border-4 border-pink-50 border-t-[#ee6996] animate-spin" />
+             </div>
+          ) : stocks.length === 0 ? (
+            <div className="text-center py-12 bg-pink-50/20 rounded-3xl border border-dashed border-pink-100 italic text-slate-400 text-sm">
+              No available stocks to sell
             </div>
-          </div>
-
-          {selectedStock && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="border-2 border-pink-100 rounded-[1.5rem] p-6 space-y-4 bg-white/50 backdrop-blur-sm">
-                  <h3 className="text-xs font-black text-[#ee6996] uppercase tracking-[0.15em] mb-4">Details of the Account</h3>
-                  <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-3">
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Email</span>
-                    <span className="text-xs font-bold text-slate-600">{selectedStock.email}</span>
-                    
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Password</span>
-                    <span className="text-xs font-bold text-slate-600">{selectedStock.password}</span>
-                    
-                    <div className="col-span-2 h-px bg-pink-50 my-1"></div>
-
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Service</span>
-                    <span className="text-xs font-bold text-slate-600">{selectedStock.service}</span>
-                    
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Duration</span>
-                    <span className="text-xs font-bold text-slate-600">{selectedStock.duration}</span>
-                    
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Price</span>
-                    <span className="text-xs font-black text-slate-700">₱{selectedStock.price}</span>
-                    
-                    <span className="text-xs font-black text-[#ee6996] uppercase tracking-[0.1em]">Available</span>
-                    <span className="text-xs font-bold text-slate-600">{selectedStock.quantity}</span>
-                  </div>
-              </div>
-
-              {/* Status Selection */}
+          ) : (
+            <>
+              {/* Select Stock Email */}
               <div className="space-y-4">
-                <label className="text-xs font-bold text-slate-700 ml-1">Status</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSaleStatus('SOLD')}
-                    className={`flex-1 py-4 rounded-[1rem] border-2 font-black text-xs tracking-[0.2em] uppercase transition-all shadow-sm ${
-                      saleStatus === 'SOLD' 
-                      ? 'bg-[#ee6996] border-[#ee6996] text-white' 
-                      : 'bg-white border-pink-100 text-[#ee6996]'
-                    }`}
-                  >
-                    SOLD
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSaleStatus('RESERVED')}
-                    className={`flex-1 py-4 rounded-[1rem] border-2 font-black text-xs tracking-[0.2em] uppercase transition-all shadow-sm ${
-                      saleStatus === 'RESERVED' 
-                      ? 'bg-blue-500 border-blue-500 text-white' 
-                      : 'bg-white border-blue-100 text-blue-500'
-                    }`}
-                  >
-                    RESERVED
-                  </button>
-                </div>
-              </div>
-
-              {/* Device Selection (Buttons) */}
-              {selectedStock.devices && selectedStock.devices.length > 0 && (
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-700 ml-1">Device <span className="text-[#ee6996]">*</span></label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedStock.devices.map((device) => (
-                      <button
-                        key={device}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDevice(device);
-                          setErrors(prev => prev.filter(e => e !== 'device'));
-                        }}
-                        className={`px-6 py-2.5 rounded-[0.8rem] border-2 font-black text-[10px] tracking-[0.05em] uppercase transition-all ${
-                          selectedDevice === device
-                            ? 'bg-[#ee6996] border-[#ee6996] text-white'
-                            : errors.includes('device')
-                              ? 'bg-white border-error text-red-500 animate-shake'
-                              : 'bg-white border-pink-100 text-[#ee6996] hover:bg-pink-50/50'
-                        }`}
-                      >
-                        {device}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Category Selection (Buttons) */}
-              <div className="space-y-4">
-                <label className="text-xs font-bold text-slate-700 ml-1">Category <span className="text-[#ee6996]">*</span></label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className={`px-6 py-2.5 rounded-[0.8rem] border-2 bg-[#ee6996] border-[#ee6996] text-white font-black text-[10px] tracking-[0.05em] uppercase transition-all`}
-                  >
-                    {selectedStock.category}
-                  </button>
-                </div>
-              </div>
-
-              {/* Slot & Pin Selection (Buttons) */}
-              {selectedStock.slots && selectedStock.slots.length > 0 && (
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-700 ml-1">Slot & Pin <span className="text-[#ee6996]">*</span></label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedStock.slots.map((slot, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setSelectedSlot(slot);
-                          setErrors(prev => prev.filter(e => e !== 'slot'));
-                        }}
-                        className={`px-6 py-2.5 rounded-[0.8rem] border-2 font-black text-[10px] tracking-[0.05em] transition-all ${
-                          selectedSlot?.slot === slot.slot
-                            ? 'bg-[#ee6996] border-[#ee6996] text-white'
-                            : errors.includes('slot')
-                              ? 'bg-white border-error text-red-500 animate-shake'
-                              : 'bg-white border-pink-100 text-[#ee6996] hover:bg-pink-50/50'
-                        }`}
-                      >
-                        {slot.slot} - {slot.pin}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Buyer Name */}
-              <div className="space-y-4">
-                 <label className="text-xs font-bold text-slate-700 ml-1">Buyer Name <span className="text-[#ee6996]">*</span></label>
-                 <input
-                    type="text"
-                    placeholder="Enter buyer name"
-                    value={buyerName}
-                    onChange={(e) => {
-                      setBuyerName(e.target.value);
-                      if (e.target.value) setErrors(prev => prev.filter(err => err !== 'buyer'));
-                    }}
-                    className={`w-full px-5 py-4 rounded-[1.25rem] border-2 bg-[#fff9fb] focus:outline-none focus:border-[#ee6996] placeholder-slate-300 text-sm font-bold text-slate-700 shadow-sm ${
-                      errors.includes('buyer') ? 'border-error animate-shake' : 'border-pink-50'
-                    }`}
-                  />
-              </div>
-
-              {/* Quantity */}
-              <div className="space-y-4">
-                 <label className="text-xs font-bold text-slate-700 ml-1">Quantity <span className="text-[#ee6996]">*</span></label>
-                 <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-5 py-4 rounded-[1.25rem] border-2 border-pink-50 bg-[#fff9fb] focus:outline-none focus:border-[#ee6996] text-sm font-bold text-slate-700 shadow-sm"
-                  />
-              </div>
-
-              {/* Image Upload */}
-              <div className="space-y-4">
-                <label className="text-xs font-bold text-slate-700 ml-1">
-                  Image of Receipt / Screenshot <span className="text-[#ee6996]">*</span> <span className="text-[10px] text-pink-400 lowercase italic ml-1">(Max 10)</span>
-                </label>
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Stock Email</label>
                 <div className="relative group">
-                  <div className={`flex items-center gap-4 w-full px-5 py-4 rounded-[1.25rem] border-2 bg-white shadow-sm transition-all group-hover:border-pink-200 ${
-                    errors.includes('receipt') ? 'border-error animate-shake' : 'border-pink-50'
-                  }`}>
-                    <label className="cursor-pointer px-6 py-2 bg-pink-50 border-2 border-pink-100 rounded-[1rem] text-[10px] font-black text-[#ee6996] uppercase tracking-widest hover:bg-pink-100 transition-colors">
-                      Choose Files
-                      <input 
-                        type="file" 
-                        multiple 
-                        className="hidden" 
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            const files = Array.from(e.target.files).slice(0, 10);
-                            setReceiptFiles(files);
-                            if (files.length > 0) setErrors(prev => prev.filter(err => err !== 'receipt'));
-                          }
-                        }}
-                      />
-                    </label>
-                    <span className="text-xs font-bold text-slate-400">
-                      {receiptFiles.length > 0 ? receiptFiles.map(f => f.name).join(', ') : 'No file chosen'}
-                    </span>
-                  </div>
-                  {receiptFiles.length > 0 && (
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-bold text-pink-400 mt-3 ml-2 italic">
-                        {receiptFiles.length} file(s) selected
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        {receiptFiles.map((file, idx) => {
-                          const previewUrl = URL.createObjectURL(file);
-                          return (
-                            <div key={idx} className="relative aspect-square rounded-2xl border-2 border-pink-50 overflow-hidden bg-white group shadow-sm">
-                              <img 
-                                src={previewUrl} 
-                                alt={`preview-${idx}`}
-                                className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setReceiptFiles(prev => prev.filter((_, i) => i !== idx))}
-                                className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-pink-500 shadow-sm border border-pink-50 hover:bg-white hover:scale-110 transition-all"
-                              >
-                                <X size={14} strokeWidth={3} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <select 
+                    value={selectedStockId}
+                    onChange={(e) => setSelectedStockId(e.target.value)}
+                    className="w-full bg-white border-2 border-pink-100 rounded-[1.5rem] px-5 py-4 text-sm font-bold text-slate-600 appearance-none focus:outline-none focus:border-[#ee6996] transition-all shadow-sm group-hover:border-pink-200"
+                  >
+                    <option value="">Select email...</option>
+                    {serviceCategories.map(cat => {
+                      const catStocks = stocks.filter(s => s.serviceCategory === cat);
+                      return catStocks.length > 0 ? (
+                        <optgroup key={cat} label={cat.toUpperCase()} className="font-black text-[10px] text-slate-300">
+                          {catStocks.map(stock => (
+                            <option key={stock.id} value={stock.id} className="text-slate-600 font-bold">
+                              {stock.email} ({stock.service} - {stock.duration})
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null;
+                    })}
+                  </select>
+                  <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-pink-300 pointer-events-none transition-transform group-focus-within:rotate-180" />
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-6">
-                <button
-                  type="button"
-                  onClick={handleMarkAsSold}
-                  disabled={submitting || !selectedStockId}
-                  className={`w-full py-5 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 ${
-                    submitting || !selectedStockId
-                    ? 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
-                    : 'bg-gradient-to-r from-[#ee6996] to-[#f58eb2] hover:from-[#d55a84] hover:to-[#ee6996] text-white shadow-pink-200/50'
-                  }`}
-                >
-                  {submitting ? 'Processing...' : 'Submit for Approval'}
-                </button>
-              </div>
-            </div>
+              {selectedStock && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  
+                  {/* Stock Details */}
+                  <div className="bg-pink-50/30 rounded-[2rem] border-2 border-pink-50/50 p-8 space-y-6">
+                    <h3 className="text-[10px] font-black text-pink-400 uppercase tracking-widest border-b border-pink-100/50 pb-3">Details of the account</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                      {[
+                        { label: 'SERVICE', value: selectedStock.service },
+                        { label: 'DURATION', value: selectedStock.duration },
+                        { label: 'CATEGORY', value: selectedStock.category },
+                        { label: 'PRICE', value: `₱${selectedStock.price}`, weight: 'font-black text-[#ee6996]' },
+                        { label: 'DEVICES', value: `${selectedStock.devices?.[0] || 1} Screen(s)`, weight: 'font-black text-[#ee6996]' },
+                        { label: 'AVAILABLE', value: selectedStock.quantity },
+                        { label: 'EMAIL', value: selectedStock.email, size: 'col-span-2 truncate' },
+                      ].map((item, i) => (
+                        <div key={i} className={item.size || ''}>
+                          <p className="text-[10px] font-black text-slate-400 tracking-wider mb-1 uppercase">{item.label}</p>
+                          <p className={`text-xs ${item.weight || 'font-bold'} text-slate-700`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status Toggle */}
+                  <div className="space-y-4">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Status <span className="text-[#ee6996]">*</span></label>
+                    <div className="flex gap-3">
+                      {['SOLD', 'RESERVED'].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setStatus(s.toLowerCase() as any)}
+                          className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${
+                            status === s.toLowerCase()
+                              ? 'bg-[#ee6996] border-[#ee6996] text-white shadow-lg shadow-pink-200'
+                              : 'bg-white border-pink-50 text-pink-300 hover:border-pink-100'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Device & Category */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-4">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Device <span className="text-[#ee6996]">*</span></label>
+                        <div className="flex gap-2 flex-wrap">
+                          {(() => {
+                            const maxDevices = parseInt(selectedStock.devices?.[0] || '1');
+                            const options = [];
+                            for (let i = maxDevices; i >= 1; i--) {
+                              options.push(`${i} Device${i > 1 ? 's' : ''}`);
+                            }
+                            return options.map((d) => (
+                              <button
+                                key={d}
+                                onClick={() => setDevice(d)}
+                                className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${
+                                  device === d
+                                    ? 'bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm'
+                                    : 'bg-white border-pink-50 text-slate-400 hover:border-pink-100'
+                                }`}
+                              >
+                                {d}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                     </div>
+                     <div className="space-y-4">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Category <span className="text-[#ee6996]">*</span></label>
+                        <button
+                          className="w-full py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm cursor-default"
+                        >
+                          {selectedStock.category}
+                        </button>
+                        <p className="text-[9px] font-bold text-slate-400 italic ml-1">Category is set from the original stock entry.</p>
+                     </div>
+                  </div>
+
+                  {/* Buyer & Quantity */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="md:col-span-2 space-y-4">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Buyer Name <span className="text-[#ee6996]">*</span></label>
+                      <input 
+                        type="text"
+                        placeholder="Enter buyer name"
+                        value={buyerName}
+                        onChange={(e) => setBuyerName(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-pink-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:outline-none focus:border-[#ee6996] transition-all"
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantity <span className="text-[#ee6996]">*</span></label>
+                      <input 
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-pink-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:outline-none focus:border-[#ee6996] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Receipt Upload */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Image of Receipt / Screenshot <span className="text-[#ee6996]">*</span></label>
+                      <span className="text-[9px] font-black text-pink-300 uppercase italic leading-none">(Max 10)</span>
+                    </div>
+                    <label className="relative flex flex-col items-center justify-center w-full h-24 bg-slate-50 border-2 border-dashed border-pink-200 rounded-[1.5rem] cursor-pointer hover:bg-pink-50/30 transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996] group-hover:scale-110 transition-transform shadow-sm">
+                          <Upload size={18} strokeWidth={3} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-[10px] font-black text-[#ee6996] uppercase tracking-widest">
+                            {receiptFiles.length > 0 ? `${receiptFiles.length} Files Selected` : 'Choose Files'}
+                          </p>
+                          <p className="text-[9px] font-bold text-slate-400 italic">No file chosen</p>
+                        </div>
+                      </div>
+                      <input type="file" multiple onChange={handleFileChange} className="hidden" accept="image/*" />
+                    </label>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={handleSubmitApproval}
+                    disabled={submitting || !selectedStockId}
+                    className={`w-full py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.25em] transition-all active:scale-[0.98] shadow-2xl ${
+                      submitting || !selectedStockId
+                        ? 'bg-slate-100 text-slate-300 shadow-none'
+                        : 'bg-gradient-to-r from-[#ee6996] to-[#f58eb2] text-white shadow-pink-200/50 hover:scale-[1.01]'
+                    }`}
+                  >
+                    {submitting ? 'Processing...' : status === 'sold' ? 'Complete Transaction' : 'Submit for Approval'}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* 3. Recent Transactions Card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-pink-50 p-8">
+      {/* 3. Recent Transactions */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 p-10">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center text-[#ee6996]">
-            <Eye size={20} strokeWidth={2.5} />
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
+            <Eye size={22} strokeWidth={2.5} />
           </div>
-          <h2 className="text-xl font-bold text-[#4a1d4a]">Recent Transactions</h2>
+          <div>
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">Recent Transactions</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">Last 5 records</p>
+          </div>
         </div>
         
-        <div className="space-y-3">
-          {sales.length === 0 ? (
-            <p className="text-center py-8 text-slate-400 text-sm italic">No recent sales found</p>
-          ) : (
-            sales.map((sale) => (
-              <div key={sale.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-pink-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white border border-pink-50 flex items-center justify-center text-[#ee6996] font-bold text-xs">
-                    {sale.service.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{sale.buyerName}</p>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{sale.service} • ₱{sale.totalPrice}</p>
-                  </div>
+        <div className="space-y-4">
+          {recentSales.map((sale) => (
+            <div key={sale.id} className="flex items-center justify-between p-5 bg-slate-50/50 rounded-2xl border border-pink-50/30 hover:bg-slate-50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[#ee6996] font-black shadow-sm">
+                  {sale.service.charAt(0).toUpperCase()}
                 </div>
-                <div className="text-right">
-                  <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
-                    sale.status === 'approved' ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-blue-500'
-                  }`}>
-                    {sale.status === 'approved' ? 'SOLD' : 'RESERVED'}
-                  </span>
+                <div>
+                  <p className="text-sm font-black text-slate-700">{sale.buyerName}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{sale.service} • {sale.duration}</p>
                 </div>
               </div>
-            ))
+              <div className="text-right">
+                <p className="text-sm font-black text-[#ee6996] mb-1">₱{sale.totalPrice}</p>
+                <span className={`text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest ${
+                  sale.status === 'approved' ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-blue-500'
+                }`}>
+                  {sale.status === 'approved' ? 'SOLD' : 'RESERVED'}
+                </span>
+              </div>
+            </div>
+          ))}
+          {recentSales.length === 0 && (
+            <p className="text-center py-8 text-slate-400 text-xs italic font-bold">No recent sales records</p>
           )}
         </div>
       </div>

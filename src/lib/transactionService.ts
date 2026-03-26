@@ -7,6 +7,8 @@ export interface Sale {
   stockId: string;
   service: string;
   serviceCategory: string;
+  duration: string;
+  category: string;
   email: string;
   buyerName: string;
   quantity: number;
@@ -47,6 +49,7 @@ export interface Refund {
 export interface Capital {
   id?: string;
   service: string;
+  serviceCategory: string;
   category: string;
   duration: string;
   price: number;
@@ -79,6 +82,7 @@ export interface SupplierOrder {
   id?: string;
   supplierName: string;
   service: string;
+  serviceCategory: string;
   duration: string;
   category: string;
   price: number;
@@ -96,9 +100,11 @@ export interface MonitoringSlot {
 export interface MonitoringEntry {
   id?: string;
   service: string;
+  serviceCategory?: string;
   email: string;
   password: string;
   slots: MonitoringSlot[];
+  manualFields?: string[];
   createdAt?: any;
   updatedAt?: any;
 }
@@ -107,6 +113,7 @@ export interface Replacement {
   id?: string;
   saleId: string;
   service: string;
+  serviceCategory?: string;
   oldEmail: string;
   newEmail: string;
   buyerName: string;

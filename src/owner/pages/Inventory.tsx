@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Edit2, Trash2, Save, ChevronDown, Minus } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, Save, ChevronDown, Minus, Search } from 'lucide-react';
 import { subscribeToOrders, addOrder, updateOrder, deleteOrder, type SupplierOrder } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
+import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 
 type OrderStatus = 'Pending' | 'Received' | 'Cancelled' | 'PENDING' | 'COMPLETED' | 'DROPPED';
 
-const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
-const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
-const DURATIONS = ['1 Month', '3 Months', '6 Months', '1 Year', 'Lifetime'];
 const STATUSES: OrderStatus[] = ['Pending', 'Received', 'Cancelled'];
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
@@ -22,6 +20,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
 const emptyForm = (): Omit<SupplierOrder, 'id'> => ({
   supplierName: '',
   service: '',
+  serviceCategory: '',
   duration: '',
   category: '',
   price: 0,
@@ -39,6 +38,14 @@ export default function Inventory() {
   const [form, setForm] = useState(emptyForm());
   const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [manualFields, setManualFields] = useState<string[]>([]);
+
+  const toggleManual = (field: string) => {
+    setManualFields(prev => 
+      prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+    );
+  };
 
   useEffect(() => {
     const unsubscribe = subscribeToOrders((fetchedOrders) => {
@@ -48,13 +55,19 @@ export default function Inventory() {
     return () => unsubscribe();
   }, []);
 
+  const filteredOrders = orders.filter(o => 
+    o.supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // ── Form helpers ──────────────────────────────────────────
   const handleFormChange = (field: string, value: string | number) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
-    if (!form.supplierName || !form.service || !form.duration || !form.category) {
+    if (!form.supplierName || !form.service || !form.duration || !form.category || !form.serviceCategory) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -63,6 +76,7 @@ export default function Inventory() {
       await addOrder(form as SupplierOrder);
       toast.success('Order added successfully');
       setForm(emptyForm());
+      setManualFields([]);
       setIsModalOpen(false);
     } catch (error) {
       toast.error('Failed to add order');
@@ -70,7 +84,10 @@ export default function Inventory() {
   };
 
   // ── Edit helpers ──────────────────────────────────────────
-  const handleEditOpen = (order: SupplierOrder) => setEditingOrder({ ...order });
+  const handleEditOpen = (order: SupplierOrder) => {
+    setEditingOrder({ ...order });
+    setManualFields([]);
+  };
 
   const handleEditChange = (field: string, value: string | number) => {
     if (!editingOrder) return;
@@ -110,125 +127,265 @@ export default function Inventory() {
     values,
     onChange,
   }: {
-    values: Omit<SupplierOrder, 'id'>;
+    values: Omit<SupplierOrder, 'id'> | SupplierOrder;
     onChange: (field: string, value: string | number) => void;
-  }) => (
-    <div className="grid grid-cols-2 gap-4">
+  }) => {
+    const servicesMap: Record<string, string[]> = SERVICE_CATEGORIES;
 
-      {/* Supplier Name */}
-      <div className="col-span-2 space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Supplier Name <span className="text-[#ee6996]">*</span></label>
-        <input
-          type="text"
-          placeholder="Enter supplier name"
-          value={values.supplierName}
-          onChange={e => onChange('supplierName', e.target.value)}
-          className={inputCls}
-        />
-      </div>
+    return (
+      <div className="grid grid-cols-2 gap-4">
 
-      {/* Service */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Service <span className="text-[#ee6996]">*</span></label>
-        <div className="relative">
-          <select value={values.service} onChange={e => onChange('service', e.target.value)} className={`${selectCls} ${values.service ? 'text-gray-700' : 'text-gray-400'}`}>
-            <option value="">Select</option>
-            {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Duration */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Duration <span className="text-[#ee6996]">*</span></label>
-        <div className="relative">
-          <select value={values.duration} onChange={e => onChange('duration', e.target.value)} className={`${selectCls} ${values.duration ? 'text-gray-700' : 'text-gray-400'}`}>
-            <option value="">Select</option>
-            {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Category */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Category <span className="text-[#ee6996]">*</span></label>
-        <div className="relative">
-          <select value={values.category} onChange={e => onChange('category', e.target.value)} className={`${selectCls} ${values.category ? 'text-gray-700' : 'text-gray-400'}`}>
-            <option value="">Select</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Price */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Price (₱) <span className="text-[#ee6996]">*</span></label>
-        <div className="relative">
+        {/* Supplier Name */}
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Supplier Name <span className="text-[#ee6996]">*</span></label>
           <input
-            type="number"
-            min={0}
-            step={0.01}
-            value={values.price}
-            onChange={e => onChange('price', parseFloat(e.target.value) || 0)}
-            className={`${inputCls} pr-10`}
+            type="text"
+            placeholder="Enter supplier name"
+            value={values.supplierName}
+            onChange={e => onChange('supplierName', e.target.value)}
+            className={inputCls}
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-            <button type="button" onClick={() => onChange('price', (values.price as number) + 1)} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Plus size={10} strokeWidth={3} /></button>
-            <button type="button" onClick={() => onChange('price', Math.max(0, (values.price as number) - 1))} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Minus size={10} strokeWidth={3} /></button>
-          </div>
         </div>
-      </div>
 
-      {/* Quantity */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Quantity <span className="text-[#ee6996]">*</span></label>
-        <div className="relative">
-          <input
-            type="number"
-            min={0}
-            value={values.quantity}
-            onChange={e => onChange('quantity', parseInt(e.target.value) || 0)}
-            className={`${inputCls} pr-10`}
-          />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-            <button type="button" onClick={() => onChange('quantity', (values.quantity as number) + 1)} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Plus size={10} strokeWidth={3} /></button>
-            <button type="button" onClick={() => onChange('quantity', Math.max(0, (values.quantity as number) - 1))} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Minus size={10} strokeWidth={3} /></button>
-          </div>
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="col-span-2 space-y-1.5">
-        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Status <span className="text-[#ee6996]">*</span></label>
-        <div className="flex gap-2">
-          {STATUSES.map(s => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => onChange('status', s)}
-              className={`flex-1 py-2.5 rounded-2xl text-xs font-bold border-2 transition-all ${
-                values.status === s
-                  ? s === 'Pending' ? 'bg-yellow-50 border-yellow-300 text-yellow-600'
-                  : s === 'Received' ? 'bg-green-50 border-green-300 text-green-600'
-                  : 'bg-red-50 border-red-300 text-red-500'
-                  : 'bg-white border-pink-100/50 text-gray-400 hover:border-pink-200'
-              }`}
+        {/* Service Category */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex justify-between items-center px-1">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Service Category <span className="text-[#ee6996]">*</span></label>
+            <button 
+              onClick={() => toggleManual('serviceCategory')}
+              className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
             >
-              {s}
+              {manualFields.includes('serviceCategory') ? 'List' : 'Type'}
             </button>
-          ))}
+          </div>
+          
+          {manualFields.includes('serviceCategory') ? (
+            <input 
+              type="text" 
+              placeholder="Enter Category"
+              value={values.serviceCategory}
+              onChange={e => onChange('serviceCategory', e.target.value)}
+              className={inputCls}
+            />
+          ) : (
+            <div className="relative">
+              <select 
+                value={values.serviceCategory}
+                onChange={e => {
+                  onChange('serviceCategory', e.target.value);
+                  if (e.target.value === 'other (custom category)') {
+                    toggleManual('serviceCategory');
+                    onChange('service', '');
+                  } else {
+                    onChange('service', '');
+                  }
+                }}
+                className={`${selectCls} ${values.serviceCategory ? 'text-gray-700' : 'text-gray-400'}`}
+              >
+                <option value="">Select</option>
+                <option value="entertainment">entertainment</option>
+                <option value="educational">educational</option>
+                <option value="editing">editing</option>
+                <option value="other services">other services</option>
+                <option value="other (custom category)">other (custom category)</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+        </div>
+
+        {/* Service */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex justify-between items-center px-1">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Service <span className="text-[#ee6996]">*</span></label>
+            <button 
+              onClick={() => toggleManual('service')}
+              className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+            >
+              {manualFields.includes('service') ? 'List' : 'Type'}
+            </button>
+          </div>
+
+          {manualFields.includes('service') ? (
+            <input 
+              type="text" 
+              placeholder="Enter Service"
+              value={values.service}
+              onChange={e => onChange('service', e.target.value)}
+              className={inputCls}
+            />
+          ) : (
+            <div className="relative">
+              <select 
+                value={values.service}
+                onChange={e => {
+                  onChange('service', e.target.value);
+                  if (e.target.value === 'other (custom service)') {
+                    toggleManual('service');
+                  }
+                }}
+                className={`${selectCls} ${values.service ? 'text-gray-700' : 'text-gray-400'}`}
+              >
+                <option value="">Select</option>
+                {values.serviceCategory && servicesMap[values.serviceCategory as keyof typeof SERVICE_CATEGORIES]?.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+                {(!values.serviceCategory || values.serviceCategory === 'other (custom category)') && <option value="other (custom service)">other (custom service)</option>}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+        </div>
+
+        {/* Duration */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex justify-between items-center px-1">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Duration <span className="text-[#ee6996]">*</span></label>
+            <button 
+              onClick={() => toggleManual('duration')}
+              className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+            >
+              {manualFields.includes('duration') ? 'List' : 'Type'}
+            </button>
+          </div>
+
+          {manualFields.includes('duration') ? (
+            <input 
+              type="text" 
+              placeholder="Enter Duration"
+              value={values.duration}
+              onChange={e => onChange('duration', e.target.value)}
+              className={inputCls}
+            />
+          ) : (
+            <div className="relative">
+              <select 
+                value={values.duration}
+                onChange={e => {
+                  onChange('duration', e.target.value);
+                  if (e.target.value === 'other (custom duration)') {
+                    toggleManual('duration');
+                  }
+                }}
+                className={`${selectCls} ${values.duration ? 'text-gray-700' : 'text-gray-400'}`}
+              >
+                <option value="">Select</option>
+                {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                <option value="other (custom duration)">other (custom duration)</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+        </div>
+
+        {/* Category (Stock Category) */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex justify-between items-center px-1">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Category <span className="text-[#ee6996]">*</span></label>
+            <button 
+              onClick={() => toggleManual('category')}
+              className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+            >
+              {manualFields.includes('category') ? 'List' : 'Type'}
+            </button>
+          </div>
+
+          {manualFields.includes('category') ? (
+            <input 
+              type="text" 
+              placeholder="Enter Category"
+              value={values.category}
+              onChange={e => onChange('category', e.target.value)}
+              className={inputCls}
+            />
+          ) : (
+            <div className="relative">
+              <select 
+                value={values.category}
+                onChange={e => {
+                  onChange('category', e.target.value);
+                  if (e.target.value === 'other (custom item category)') {
+                    toggleManual('category');
+                  }
+                }}
+                className={`${selectCls} ${values.category ? 'text-gray-700' : 'text-gray-400'}`}
+              >
+                <option value="">Select</option>
+                {STOCK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="other (custom item category)">other (custom item category)</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Price (₱) <span className="text-[#ee6996]">*</span></label>
+          <div className="relative">
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={values.price}
+              onChange={e => onChange('price', parseFloat(e.target.value) || 0)}
+              className={`${inputCls} pr-10`}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
+              <button type="button" onClick={() => onChange('price', (values.price as number) + 1)} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Plus size={10} strokeWidth={3} /></button>
+              <button type="button" onClick={() => onChange('price', Math.max(0, (values.price as number) - 1))} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Minus size={10} strokeWidth={3} /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Quantity */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Quantity <span className="text-[#ee6996]">*</span></label>
+          <div className="relative">
+            <input
+              type="number"
+              min={0}
+              value={values.quantity}
+              onChange={e => onChange('quantity', parseInt(e.target.value) || 0)}
+              className={`${inputCls} pr-10`}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
+              <button type="button" onClick={() => onChange('quantity', (values.quantity as number) + 1)} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Plus size={10} strokeWidth={3} /></button>
+              <button type="button" onClick={() => onChange('quantity', Math.max(0, (values.quantity as number) - 1))} className="p-0.5 text-gray-400 hover:text-[#ee6996] transition-colors"><Minus size={10} strokeWidth={3} /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Status <span className="text-[#ee6996]">*</span></label>
+          <div className="flex gap-2">
+            {STATUSES.map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => onChange('status', s)}
+                className={`flex-1 py-2.5 rounded-2xl text-xs font-bold border-2 transition-all ${
+                  values.status === s
+                    ? s === 'Pending' ? 'bg-yellow-50 border-yellow-300 text-yellow-600'
+                    : s === 'Received' ? 'bg-green-50 border-green-300 text-green-600'
+                    : 'bg-red-50 border-red-300 text-red-500'
+                    : 'bg-white border-pink-100/50 text-gray-400 hover:border-pink-200'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const headers = ['Supplier', 'Service', 'Category', 'Duration', 'Price', 'Qty', 'Status', 'Actions'];
 
   return (
-    <div className="max-w-7xl mx-auto pb-12">
+    <div className="max-w-7xl mx-auto pb-12 p-6">
 
       {/* ── Delete confirm ─────────────────────────────── */}
       {deleteConfirmId && (
@@ -279,23 +436,34 @@ export default function Inventory() {
       )}
 
       {/* ── Main card ──────────────────────────────────── */}
-      <div className="bg-white rounded-3xl shadow-sm border border-pink-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
 
         {/* Header */}
-        <div className="px-8 py-6 border-b border-pink-50 flex items-center justify-between">
+        <div className="px-8 py-8 border-b border-pink-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-[#7c2d12] font-serif">Inventory</h1>
-            {orders.length > 0 && (
-              <p className="text-xs text-slate-400 mt-0.5">{orders.length} order{orders.length !== 1 ? 's' : ''}</p>
-            )}
+            <h1 className="text-xl font-bold text-[#4a1d4a] tracking-tight">Inventory Management</h1>
+            <p className="text-xs text-slate-500 font-medium italic">Monitor and manage supplier orders</p>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[#ee6996] hover:bg-[#d55a84] text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-pink-200/50 hover:scale-[1.02] active:scale-[0.98] text-xs uppercase tracking-widest"
-          >
-            <Plus size={16} strokeWidth={3} />
-            Add Order
-          </button>
+          
+          <div className="flex items-center gap-3">
+             <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#ee6996] transition-colors" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search inventory..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full md:w-64 shadow-sm"
+                />
+              </div>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-[#ee6996] hover:bg-[#d55a84] text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-pink-200/50 hover:scale-[1.02] active:scale-[0.98] text-xs uppercase tracking-widest"
+              >
+                <Plus size={16} strokeWidth={3} />
+                Add Order
+              </button>
+          </div>
         </div>
 
         {/* Table */}
@@ -303,9 +471,9 @@ export default function Inventory() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-pink-50/30 rounded-xl overflow-hidden">
+                <tr className="bg-[#fff9fb] rounded-xl overflow-hidden">
                   {headers.map(h => (
-                    <th key={h} className="px-4 py-4 text-left text-xs font-bold text-[#7c2d12] first:rounded-l-2xl last:rounded-r-2xl">
+                    <th key={h} className="px-4 py-4 text-left text-[10px] font-black text-[#ee6996] uppercase tracking-widest first:rounded-l-2xl last:rounded-r-2xl">
                       {h}
                     </th>
                   ))}
@@ -317,51 +485,48 @@ export default function Inventory() {
                     <td colSpan={8} className="py-24 text-center">
                        <div className="flex flex-col items-center justify-center">
                           <div className="w-8 h-8 border-4 border-pink-100 border-t-[#ee6996] rounded-full animate-spin mb-4"></div>
-                          <p className="text-sm font-bold text-[#ee6996] opacity-40">Loading inventory...</p>
+                          <p className="text-sm font-bold text-[#ee6996] opacity-40 uppercase tracking-widest">Loading inventory...</p>
                        </div>
                     </td>
                   </tr>
-                ) : orders.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-24 text-center">
-                      <p className="text-sm font-bold text-[#ee6996] opacity-40">No inventory items</p>
+                      <p className="text-sm font-bold text-[#ee6996] opacity-40 uppercase tracking-widest">No inventory items found</p>
                     </td>
                   </tr>
                 ) : (
-                  orders.map(order => (
+                  filteredOrders.map(order => (
                     <tr key={order.id} className="border-b border-pink-50/60 hover:bg-pink-50/10 transition-colors">
                       <td className="px-4 py-4">
                         <span className="text-sm font-bold text-slate-700">{order.supplierName}</span>
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-pink-100 flex items-center justify-center text-[#ee6996] font-black text-[10px]">
-                            {order.service.charAt(0)}
-                          </div>
+                      <td className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
                           <span className="text-sm font-semibold text-slate-600">{order.service}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-[11px] font-bold text-[#ee6996] uppercase tracking-wider">{order.category}</span>
+                      <td className="px-4 py-4 text-center">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{order.category}</span>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">{order.duration}</span>
+                      <td className="px-4 py-4 text-center">
+                        <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-pink-50">{order.duration}</span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 text-center">
                         <span className="text-sm font-black text-slate-700">₱{order.price.toLocaleString()}</span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 text-center">
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-50 text-slate-500 font-bold text-xs ring-1 ring-slate-100">
                           {order.quantity}
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${STATUS_STYLE[order.status]}`}>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${STATUS_STYLE[order.status as OrderStatus] || 'bg-gray-50'}`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-1.5">
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button onClick={() => handleEditOpen(order)} className="p-2 hover:bg-blue-50 rounded-xl text-slate-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-100" title="Edit">
                             <Edit2 size={13} />
                           </button>
@@ -387,7 +552,7 @@ export default function Inventory() {
             <div className="px-8 pt-8 pb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-gray-800">Add New Order</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Add a new order to the system</p>
+                <p className="text-xs text-gray-400 mt-0.5">Add a new supplier order</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2.5 hover:bg-pink-50 rounded-2xl text-gray-300 hover:text-pink-500 transition-all">
                 <X size={20} />
@@ -399,7 +564,7 @@ export default function Inventory() {
             <div className="px-8 pb-8 pt-4">
               <button
                 onClick={handleSubmit}
-                disabled={!form.supplierName || !form.service || !form.duration || !form.category}
+                disabled={!form.supplierName || !form.service || !form.duration || !form.category || !form.serviceCategory}
                 className="w-full bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] disabled:opacity-40 disabled:cursor-not-allowed text-white py-4 rounded-[1.5rem] font-bold text-lg shadow-xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 Add Order

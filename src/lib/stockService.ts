@@ -3,10 +3,10 @@ import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc, T
 
 // Service categories and items
 export const SERVICE_CATEGORIES = {
-  entertainment: ['netflix', 'disney', 'hbo max', 'viu', 'prime video', 'vivaone', 'vivamax', 'loklok basic', 'loklok standard', 'youtube', 'crunchyroll', 'iwanttfc', 'spotify'],
+  entertainment: ['netflix', 'disney+', 'hbo max', 'viu', 'prime video', 'vivaone', 'viva max', 'loklok basic', 'loklok standard', 'youtube', 'crunchyroll', 'iwanttfc', 'spotify'],
   educational: ['grammarly', 'quizlet', 'quillbot', 'scribd', 'studocu', 'chatgpt', 'ms365', 'gemini ai'],
   editing: ['canva', 'capcut', 'picsart'],
-  'other services': ['telegram premium', 'domain making'],
+  'other services': ['telegram', 'domain making'],
 };
 
 export const DURATIONS = ['1 month', '2 months', '3 months', '4 months', '5 months', '6 months', '7 months', '8 months', '9 months', '10 months', '11 months', '1 year', 'lifetime'];

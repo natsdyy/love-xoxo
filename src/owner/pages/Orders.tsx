@@ -1,27 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, ListFilter, Search, Trash2 } from 'lucide-react';
+import { Plus, X, ListFilter, Search, Trash2, ChevronDown } from 'lucide-react';
 import { subscribeToOrders, addOrder, updateOrder, deleteOrder, type SupplierOrder } from '../../lib/transactionService';
 import { toast } from 'react-toastify';
-
-const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
-const CATEGORIES = ['Solo Profile', 'Shared', 'Duo', 'Family', 'Other'];
-const DURATIONS = ['1 Month', '3 Months', '6 Months', '1 Year', 'Lifetime'];
+import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 
 export default function Orders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [orders, setOrders] = useState<SupplierOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [manualFields, setManualFields] = useState<string[]>([]);
   
   const [form, setForm] = useState<Omit<SupplierOrder, 'id'>>({
     supplierName: '',
     service: '',
+    serviceCategory: '',
     duration: '',
     category: '',
     price: 0,
     quantity: 0,
     status: 'PENDING'
   });
+
+  const toggleManual = (field: string) => {
+    setManualFields(prev => 
+      prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+    );
+  };
 
   useEffect(() => {
     const unsubscribe = subscribeToOrders((fetchedOrders) => {
@@ -40,7 +45,7 @@ export default function Orders() {
   );
 
   const handleAddOrder = async () => {
-    if (!form.supplierName || !form.service || !form.duration || !form.category) {
+    if (!form.supplierName || !form.service || !form.duration || !form.category || !form.serviceCategory) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -50,12 +55,14 @@ export default function Orders() {
       setForm({
         supplierName: '',
         service: '',
+        serviceCategory: '',
         duration: '',
         category: '',
         price: 0,
         quantity: 0,
         status: 'PENDING'
       });
+      setManualFields([]);
       setIsModalOpen(false);
     } catch (error) {
       toast.error('Failed to add order');
@@ -80,6 +87,9 @@ export default function Orders() {
       toast.error('Failed to delete order');
     }
   };
+
+  const inputCls = "w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all shadow-sm";
+  const selectCls = `${inputCls} appearance-none cursor-pointer pr-10`;
 
   return (
     <div className="p-6">
@@ -162,7 +172,10 @@ export default function Orders() {
                       <span className="text-sm font-bold text-gray-700">{order.supplierName}</span>
                     </td>
                     <td className="px-8 py-4 text-center">
-                      <span className="text-xs font-semibold text-gray-600">{order.service}</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-gray-600">{order.service}</span>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{order.serviceCategory}</span>
+                      </div>
                     </td>
                     <td className="px-8 py-4 text-center">
                       <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{order.duration}</span>
@@ -229,58 +242,180 @@ export default function Orders() {
             </div>
 
             {/* Modal Body */}
-            <div className="px-10 py-8 space-y-8">
+            <div className="px-10 py-8 space-y-8 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 
                 {/* Supplier Name */}
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-full">
                   <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Supplier Name <span className="text-pink-500">*</span></label>
                   <input 
                     type="text" 
                     placeholder="Enter supplier name"
                     value={form.supplierName}
                     onChange={(e) => setForm({...form, supplierName: e.target.value})}
-                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all shadow-sm"
+                    className={inputCls}
                   />
+                </div>
+
+                {/* Service Category */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Category <span className="text-pink-500">*</span></label>
+                    <button 
+                      onClick={() => toggleManual('serviceCategory')}
+                      className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                    >
+                      {manualFields.includes('serviceCategory') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {manualFields.includes('serviceCategory') ? (
+                    <input 
+                      type="text" 
+                      placeholder="Enter Category"
+                      value={form.serviceCategory}
+                      onChange={(e) => setForm({...form, serviceCategory: e.target.value})}
+                      className={inputCls}
+                    />
+                  ) : (
+                    <div className="relative">
+                      <select 
+                        value={form.serviceCategory}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm({...form, serviceCategory: val, service: ''});
+                          if (val === 'other (custom category)') toggleManual('serviceCategory');
+                        }}
+                        className={selectCls}
+                      >
+                        <option value="">Select</option>
+                        <option value="entertainment">entertainment</option>
+                        <option value="educational">educational</option>
+                        <option value="editing">editing</option>
+                        <option value="other services">other services</option>
+                        <option value="other (custom category)">other (custom category)</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Service */}
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Service <span className="text-pink-500">*</span></label>
-                  <select 
-                    value={form.service}
-                    onChange={(e) => setForm({...form, service: e.target.value})}
-                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
-                  >
-                    <option value="">Select</option>
-                    {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Service <span className="text-pink-500">*</span></label>
+                    <button 
+                      onClick={() => toggleManual('service')}
+                      className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                    >
+                      {manualFields.includes('service') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {manualFields.includes('service') ? (
+                    <input 
+                      type="text" 
+                      placeholder="Enter Service"
+                      value={form.service}
+                      onChange={(e) => setForm({...form, service: e.target.value})}
+                      className={inputCls}
+                    />
+                  ) : (
+                    <div className="relative">
+                      <select 
+                        value={form.service}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm({...form, service: val});
+                          if (val === 'other (custom service)') toggleManual('service');
+                        }}
+                        className={selectCls}
+                      >
+                        <option value="">Select</option>
+                        {form.serviceCategory && SERVICE_CATEGORIES[form.serviceCategory as keyof typeof SERVICE_CATEGORIES]?.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                        {(!form.serviceCategory || form.serviceCategory === 'other (custom category)') && <option value="other (custom service)">other (custom service)</option>}
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration */}
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Duration <span className="text-pink-500">*</span></label>
-                  <select 
-                    value={form.duration}
-                    onChange={(e) => setForm({...form, duration: e.target.value})}
-                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
-                  >
-                    <option value="">Select</option>
-                    {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Duration <span className="text-pink-500">*</span></label>
+                    <button 
+                      onClick={() => toggleManual('duration')}
+                      className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                    >
+                      {manualFields.includes('duration') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {manualFields.includes('duration') ? (
+                    <input 
+                      type="text" 
+                      placeholder="Enter Duration"
+                      value={form.duration}
+                      onChange={(e) => setForm({...form, duration: e.target.value})}
+                      className={inputCls}
+                    />
+                  ) : (
+                    <div className="relative">
+                      <select 
+                        value={form.duration}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm({...form, duration: val});
+                          if (val === 'other (custom duration)') toggleManual('duration');
+                        }}
+                        className={selectCls}
+                      >
+                        <option value="">Select</option>
+                        {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        <option value="other (custom duration)">other (custom duration)</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
                 </div>
 
-                {/* Category */}
+                {/* Category (Stock Category) */}
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Category <span className="text-pink-500">*</span></label>
-                  <select 
-                    value={form.category}
-                    onChange={(e) => setForm({...form, category: e.target.value})}
-                    className="w-full bg-pink-50/20 border-2 border-pink-100/30 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
-                  >
-                    <option value="">Select</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Item Category <span className="text-pink-500">*</span></label>
+                    <button 
+                      onClick={() => toggleManual('category')}
+                      className="text-[9px] font-black text-pink-500 hover:text-pink-700 uppercase"
+                    >
+                      {manualFields.includes('category') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {manualFields.includes('category') ? (
+                    <input 
+                      type="text" 
+                      placeholder="Enter Category"
+                      value={form.category}
+                      onChange={(e) => setForm({...form, category: e.target.value})}
+                      className={inputCls}
+                    />
+                  ) : (
+                    <div className="relative">
+                      <select 
+                        value={form.category}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm({...form, category: val});
+                          if (val === 'other') toggleManual('category');
+                        }}
+                        className={selectCls}
+                      >
+                        <option value="">Select</option>
+                        {STOCK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="other">other (custom item category)</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Price */}

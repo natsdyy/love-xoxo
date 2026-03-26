@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Monitor as MonitorIcon, Edit2, Trash2, Save, User, Lock, ChevronDown } from 'lucide-react';
 import { subscribeToMonitoring, addMonitoring, updateMonitoring, deleteMonitoring, type MonitoringEntry, type MonitoringSlot as Slot } from '../../lib/transactionService';
+import { SERVICE_CATEGORIES } from '../../lib/stockService';
 import { toast } from 'react-toastify';
-
-const SERVICES = ['Netflix', 'Disney+', 'HBO Max', 'Apple TV+', 'YouTube Premium', 'Spotify', 'Canva Pro', 'Other'];
 
 const emptyForm = () => ({
   service: '',
+  serviceCategory: '',
   email: '',
   password: '',
   slots: [] as Slot[],
+  manualFields: [] as string[],
 });
 
 export default function Monitoring() {
@@ -28,7 +29,28 @@ export default function Monitoring() {
     return () => unsubscribe();
   }, []);
 
-  // ── Form helpers ──────────────────────────────────────────────
+  const toggleManual = (field: string, isEditing = false) => {
+    if (isEditing) {
+      setEditingEntry(prev => {
+        if (!prev) return null;
+        const currentManual = prev.manualFields || [];
+        const isManual = currentManual.includes(field);
+        return {
+          ...prev,
+          manualFields: isManual ? currentManual.filter(f => f !== field) : [...currentManual, field]
+        };
+      });
+    } else {
+      setForm(prev => {
+        const isManual = prev.manualFields.includes(field);
+        return {
+          ...prev,
+          manualFields: isManual ? prev.manualFields.filter(f => f !== field) : [...prev.manualFields, field]
+        }
+      });
+    }
+  };
+
   const handleFormChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
@@ -161,12 +183,66 @@ export default function Monitoring() {
               </button>
             </div>
             <div className="px-10 py-6 space-y-5 max-h-[65vh] overflow-y-auto">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Service</label>
-                <select value={editingEntry.service} onChange={e => handleEditChange('service', e.target.value)} className={inputCls}>
-                  <option value="">Select service</option>
-                  {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Category <span className="text-[#ee6996]">*</span></label>
+                    <button type="button" onClick={() => toggleManual('serviceCategory', true)} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                      {editingEntry.manualFields?.includes('serviceCategory') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {editingEntry.manualFields?.includes('serviceCategory') ? (
+                    <input type="text" placeholder="Type Category" value={editingEntry.serviceCategory} onChange={(e) => handleEditChange('serviceCategory', e.target.value)} className={inputCls} />
+                  ) : (
+                    <div className="relative">
+                      <select value={editingEntry.serviceCategory} onChange={e => {
+                          handleEditChange('serviceCategory', e.target.value);
+                          handleEditChange('service', '');
+                          if (e.target.value === 'other (custom category)') {
+                            toggleManual('serviceCategory', true);
+                          }
+                        }} className={inputCls}>
+                        <option value="">Select Category</option>
+                        <option value="entertainment">entertainment</option>
+                        <option value="educational">educational</option>
+                        <option value="editing">editing</option>
+                        <option value="other services">other services</option>
+                        <option value="other (custom category)">other (custom category)</option>
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Service */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Service <span className="text-[#ee6996]">*</span></label>
+                    <button type="button" onClick={() => toggleManual('service', true)} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                      {editingEntry.manualFields?.includes('service') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {editingEntry.manualFields?.includes('service') ? (
+                    <input type="text" placeholder="Type Service" value={editingEntry.service} onChange={(e) => handleEditChange('service', e.target.value)} className={inputCls} />
+                  ) : (
+                    <div className="relative">
+                      <select value={editingEntry.service} onChange={e => {
+                          handleEditChange('service', e.target.value);
+                          if (e.target.value === 'other (custom service)') {
+                            toggleManual('service', true);
+                          }
+                        }} className={inputCls}>
+                        <option value="">Select Service</option>
+                        {editingEntry.serviceCategory && (SERVICE_CATEGORIES as any)[editingEntry.serviceCategory]?.map((s: string) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                        <option value="other (custom service)">other (custom service)</option>
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Email</label>
@@ -208,8 +284,8 @@ export default function Monitoring() {
       )}
 
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="flex justify-between items-center mb-6 px-2">
-        <h1 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-3">
+      <div className="flex justify-between items-center mb-6 px-2 text-[#4a1d4a]">
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
           Monitoring <span className="text-gray-400 font-medium text-lg">(Entertainment Only)</span>
         </h1>
         <button
@@ -299,20 +375,65 @@ export default function Monitoring() {
             </div>
 
             <div className="px-10 py-6 space-y-5 max-h-[65vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Category <span className="text-[#ee6996]">*</span></label>
+                    <button type="button" onClick={() => toggleManual('serviceCategory')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                      {form.manualFields.includes('serviceCategory') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {form.manualFields.includes('serviceCategory') ? (
+                    <input type="text" placeholder="Type Category" value={form.serviceCategory} onChange={(e) => handleFormChange('serviceCategory', e.target.value)} className={inputCls} />
+                  ) : (
+                    <div className="relative">
+                      <select value={form.serviceCategory} onChange={e => {
+                          handleFormChange('serviceCategory', e.target.value);
+                          handleFormChange('service', '');
+                          if (e.target.value === 'other (custom category)') {
+                            toggleManual('serviceCategory');
+                          }
+                        }} className={inputCls}>
+                        <option value="">Select Category</option>
+                        <option value="entertainment">entertainment</option>
+                        <option value="educational">educational</option>
+                        <option value="editing">editing</option>
+                        <option value="other services">other services</option>
+                        <option value="other (custom category)">other (custom category)</option>
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                  )}
+                </div>
 
-              {/* Service */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Service</label>
-                <div className="relative">
-                  <select
-                    value={form.service}
-                    onChange={e => handleFormChange('service', e.target.value)}
-                    className={`${inputCls} appearance-none cursor-pointer pr-10 ${form.service ? 'text-slate-700' : 'text-gray-400'}`}
-                  >
-                    <option value="">Select service</option>
-                    {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                {/* Service */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Service <span className="text-[#ee6996]">*</span></label>
+                    <button type="button" onClick={() => toggleManual('service')} className="text-[10px] font-black text-pink-500 uppercase tracking-widest hover:text-[#ee6996] transition-colors bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100 shadow-sm">
+                      {form.manualFields.includes('service') ? 'List' : 'Type'}
+                    </button>
+                  </div>
+                  {form.manualFields.includes('service') ? (
+                    <input type="text" placeholder="Type Service" value={form.service} onChange={(e) => handleFormChange('service', e.target.value)} className={inputCls} />
+                  ) : (
+                    <div className="relative">
+                      <select value={form.service} onChange={e => {
+                          handleFormChange('service', e.target.value);
+                          if (e.target.value === 'other (custom service)') {
+                            toggleManual('service');
+                          }
+                        }} className={inputCls}>
+                        <option value="">Select Service</option>
+                        {form.serviceCategory && (SERVICE_CATEGORIES as any)[form.serviceCategory]?.map((s: string) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                        <option value="other (custom service)">other (custom service)</option>
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                  )}
                 </div>
               </div>
 
