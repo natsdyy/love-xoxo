@@ -16,6 +16,7 @@ export default function StockPanel() {
   
   // Form State
   const [status, setStatus] = useState<'sold' | 'reserved'>('sold');
+  const [selectedSlotPin, setSelectedSlotPin] = useState<{ slot: string; pin: string } | null>(null);
   const [device, setDevice] = useState('');
   const [category, setCategory] = useState('');
   const [buyerName, setBuyerName] = useState('');
@@ -50,6 +51,7 @@ export default function StockPanel() {
       const maxDevices = parseInt(selectedStock.devices?.[0] || '1');
       setDevice(`${maxDevices} Device${maxDevices > 1 ? 's' : ''}`);
       setCategory(selectedStock.category || 'solo profile');
+      setSelectedSlotPin(null); // reset slot selection when stock changes
     }
   }, [selectedStock]);
 
@@ -95,7 +97,11 @@ export default function StockPanel() {
         adminName: username,
         status: status === 'sold' ? 'approved' : 'pending',
         receipt: receiptUrls,
-        notes: `Device: ${device}${saleNotes ? ` - ${saleNotes}` : ''}`,
+        notes: [
+          `Device: ${device}`,
+          selectedSlotPin ? `Slot: ${selectedSlotPin.slot} | Pin: ${selectedSlotPin.pin}` : '',
+          saleNotes,
+        ].filter(Boolean).join(' | '),
         createdAt: new Date(),
       });
 
@@ -112,6 +118,7 @@ export default function StockPanel() {
       setQuantity('1');
       setReceiptFiles([]);
       setSaleNotes('');
+      setSelectedSlotPin(null);
     } catch (error) {
       console.error('Error processing sale:', error);
       toast.error('❌ Failed to process sale');
@@ -328,6 +335,56 @@ export default function StockPanel() {
                       </div>
                       <input type="file" multiple onChange={handleFileChange} className="hidden" accept="image/*" />
                     </label>
+                  </div>
+
+                  {/* Slot & Pin Selector — only shown if stock has pre-entered slots */}
+                  {selectedStock.slots && selectedStock.slots.length > 0 && (
+                    <div className="space-y-4">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Slot &amp; Pin <span className="text-[#ee6996]">*</span>
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStock.slots.map((s, i) => {
+                          const isSelected =
+                            selectedSlotPin?.slot === s.slot && selectedSlotPin?.pin === s.pin;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() =>
+                                setSelectedSlotPin(isSelected ? null : { slot: s.slot, pin: s.pin })
+                              }
+                              className={`px-4 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all border-2 ${
+                                isSelected
+                                  ? 'bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm'
+                                  : 'bg-white border-pink-50 text-slate-500 hover:border-pink-200'
+                              }`}
+                            >
+                              <span className="opacity-60 font-bold">Slot</span> {s.slot}
+                              <span className="mx-1.5 opacity-30">|</span>
+                              <span className="opacity-60 font-bold">Pin</span> {s.pin}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedSlotPin && (
+                        <p className="text-[9px] font-black text-[#ee6996] ml-1 italic">
+                          Selected: Slot {selectedSlotPin.slot} — Pin {selectedSlotPin.pin}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  <div className="space-y-4">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Notes</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Optional notes..."
+                      value={saleNotes}
+                      onChange={(e) => setSaleNotes(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-pink-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:outline-none focus:border-[#ee6996] transition-all resize-none"
+                    />
                   </div>
 
                   {/* Submit Button */}

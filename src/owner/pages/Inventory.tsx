@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Edit2, Trash2, Save, ChevronDown, Minus, Search } from 'lucide-react';
 import { subscribeToOrders, addOrder, updateOrder, deleteOrder, type SupplierOrder } from '../../lib/transactionService';
+import { subscribeToStocks, type Stock, SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 import { toast } from 'react-toastify';
-import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
 
 type OrderStatus = 'Pending' | 'Received' | 'Cancelled' | 'PENDING' | 'COMPLETED' | 'DROPPED';
 
@@ -40,6 +40,14 @@ export default function Inventory() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [manualFields, setManualFields] = useState<string[]>([]);
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'mid' | 'high'>('all');
+
+  const getStockLevel = (qty: number): 'low' | 'mid' | 'high' => {
+    if (qty <= 2) return 'low';
+    if (qty <= 5) return 'mid';
+    return 'high';
+  };
 
   const toggleManual = (field: string) => {
     setManualFields(prev => 
@@ -51,6 +59,13 @@ export default function Inventory() {
     const unsubscribe = subscribeToOrders((fetchedOrders) => {
       setOrders(fetchedOrders);
       setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStocks((fetchedStocks) => {
+      setStocks(fetchedStocks.filter(s => s.status === 'available'));
     });
     return () => unsubscribe();
   }, []);
@@ -434,6 +449,104 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      {/* ── Stock Level Overview ─────────────────────── */}
+      {(() => {
+        const low = stocks.filter(s => getStockLevel(s.quantity) === 'low');
+        const mid = stocks.filter(s => getStockLevel(s.quantity) === 'mid');
+        const high = stocks.filter(s => getStockLevel(s.quantity) === 'high');
+        const filtered = stockFilter === 'all' ? stocks : stockFilter === 'low' ? low : stockFilter === 'mid' ? mid : high;
+
+        return (
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden mb-6">
+            <div className="px-8 py-6 border-b border-pink-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#4a1d4a] tracking-tight">Stock Level Monitor</h2>
+                <p className="text-xs text-slate-500 font-medium italic">Real-time view of available stock quantities</p>
+              </div>
+              {/* Summary pills */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { key: 'all', label: 'All', count: stocks.length, color: 'bg-slate-100 text-slate-600 hover:bg-slate-200' },
+                  { key: 'low', label: 'Low Stock', count: low.length, color: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100' },
+                  { key: 'mid', label: 'Mid Stock', count: mid.length, color: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-100' },
+                  { key: 'high', label: 'High Stock', count: high.length, color: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-100' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setStockFilter(tab.key as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab.color} ${stockFilter === tab.key ? 'ring-2 ring-offset-1 ring-current' : ''}`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 overflow-x-auto">
+              {filtered.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm font-medium">
+                  No stocks in this category
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-[#fff9fb]">
+                      {['Service', 'Email', 'Category', 'Duration', 'Price', 'Qty', 'Level'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-[#ee6996] uppercase tracking-widest first:rounded-l-xl last:rounded-r-xl">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(stock => {
+                      const level = getStockLevel(stock.quantity);
+                      const levelStyles = {
+                        low: { badge: 'bg-red-100 text-red-600 border-red-200', bar: 'bg-red-400', label: 'Low Stock' },
+                        mid: { badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', bar: 'bg-yellow-400', label: 'Mid Stock' },
+                        high: { badge: 'bg-green-100 text-green-700 border-green-200', bar: 'bg-green-400', label: 'High Stock' },
+                      }[level];
+                      return (
+                        <tr key={stock.id} className="border-b border-pink-50/60 hover:bg-pink-50/10 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="text-sm font-bold text-slate-700 capitalize">{stock.service}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-medium text-slate-500 truncate max-w-[120px] block">{stock.email}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stock.category}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-lg border border-pink-50">{stock.duration}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm font-black text-slate-700">₱{stock.price}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${levelStyles.bar}`} style={{ width: `${Math.min(100, (stock.quantity / 10) * 100)}%` }} />
+                              </div>
+                              <span className="text-xs font-black text-slate-600">{stock.quantity}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${levelStyles.badge}`}>
+                              {levelStyles.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Main card ──────────────────────────────────── */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">

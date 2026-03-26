@@ -29,19 +29,16 @@ export default function Approval() {
         approvedAt: new Date()
       });
 
-      // Update the corresponding stock inventory
+      // Stock quantity was already deducted when submitted from StockPanel.
+      // On approval, just finalize the stock status to 'sold' (if still reserved).
       if (sale.stockId) {
         const stockRef = doc(db, 'stocks', sale.stockId);
         const stockSnap = await getDoc(stockRef);
-        
         if (stockSnap.exists()) {
           const currentStock = stockSnap.data();
-          const newQty = Math.max(0, (currentStock.quantity || 1) - sale.quantity);
-          
-          await updateStock(sale.stockId, {
-            quantity: newQty,
-            status: newQty === 0 ? 'sold' : currentStock.status
-          });
+          if (currentStock.status === 'reserved') {
+            await updateStock(sale.stockId, { status: 'sold' });
+          }
         }
       }
 

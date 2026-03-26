@@ -21,6 +21,7 @@ export default function StockPanel() {
   const [quantity, setQuantity] = useState('1');
   const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
   const [saleNotes, setSaleNotes] = useState('');
+  const [selectedSlotPin, setSelectedSlotPin] = useState<{ slot: string; pin: string } | null>(null);
 
   // Get real-time stocks from Firestore
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function StockPanel() {
       const maxDevices = parseInt(selectedStock.devices?.[0] || '1');
       setDevice(`${maxDevices} Device${maxDevices > 1 ? 's' : ''}`);
       setCategory(selectedStock.category || 'solo profile');
+      setSelectedSlotPin(null);
     }
   }, [selectedStock]);
 
@@ -110,15 +112,23 @@ export default function StockPanel() {
         adminName: username,
         status: 'pending', // Labeled as "Submit for Approval"
         receipt: receiptUrls,
-        notes: `Device: ${device}${saleNotes ? ` - ${saleNotes}` : ''}`,
+        notes: [
+          `Device: ${device}`,
+          selectedSlotPin ? `Slot: ${selectedSlotPin.slot} | Pin: ${selectedSlotPin.pin}` : '',
+          saleNotes,
+        ].filter(Boolean).join(' | '),
         createdAt: new Date(),
       });
 
-      // Update stock status to reserved if it's a reservation, or keep as available until approved?
-      // Usually, when "Submit for Approval" is clicked, we might want to reserve it so others can't see it.
-      if (status === 'reserved') {
-        await updateStock(selectedStock.id!, { status: 'reserved' });
-      }
+      // ✅ Immediately deduct stock on submission to prevent double-selling
+      const qty = parseInt(quantity) || 1;
+      const newQty = Math.max(0, (selectedStock.quantity || 1) - qty);
+      await updateStock(selectedStock.id!, {
+        quantity: newQty,
+        // Mark as 'reserved' so it disappears from the Stock Panel dropdown immediately.
+        // If stock reaches 0, mark as 'sold' so it can't be selected at all.
+        status: newQty === 0 ? 'sold' : 'reserved',
+      });
 
       toast.success('✅ Sale submitted for approval!', {
         position: 'top-right',
@@ -131,6 +141,7 @@ export default function StockPanel() {
       setQuantity('1');
       setReceiptFiles([]);
       setSaleNotes('');
+      setSelectedSlotPin(null);
     } catch (error) {
       console.error('Error submitting sale:', error);
       toast.error('❌ Failed to submit sale', {
@@ -220,8 +231,18 @@ export default function StockPanel() {
                 </div>
               )}
 
-              {/* Form Controls */}
+              {/* Form Controls — only show if stock is still available */}
               {selectedStock && (
+                selectedStock.status !== 'available' ? (
+                  <div className="bg-red-50 border-2 border-red-100 rounded-[2rem] p-8 text-center space-y-2 animate-in fade-in duration-300">
+                    <div className="text-2xl">🔒</div>
+                    <p className="text-sm font-black text-red-500 uppercase tracking-wider">Stock Unavailable</p>
+                    <p className="text-xs text-red-400 font-medium">
+                      This stock is currently <strong>{selectedStock.status}</strong> and cannot be sold again.
+                      Please select a different stock.
+                    </p>
+                  </div>
+                ) : (
                 <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                   
                   {/* Status Toggle */}
@@ -363,6 +384,44 @@ export default function StockPanel() {
                     </label>
                   </div>
 
+                  {/* Slot & Pin Selector — only shown if stock has pre-entered slots */}
+                  {selectedStock.slots && selectedStock.slots.length > 0 && (
+                    <div className="space-y-3">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                        Slot &amp; Pin <span className="text-[#ee6996]">*</span>
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStock.slots.map((s, i) => {
+                          const isSelected =
+                            selectedSlotPin?.slot === s.slot && selectedSlotPin?.pin === s.pin;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() =>
+                                setSelectedSlotPin(isSelected ? null : { slot: s.slot, pin: s.pin })
+                              }
+                              className={`px-4 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all border-2 ${
+                                isSelected
+                                  ? 'bg-pink-100 border-[#ee6996] text-[#ee6996] shadow-sm'
+                                  : 'bg-white border-pink-50 text-slate-500 hover:border-pink-200'
+                              }`}
+                            >
+                              <span className="opacity-60 font-bold">Slot</span> {s.slot}
+                              <span className="mx-1.5 opacity-30">|</span>
+                              <span className="opacity-60 font-bold">Pin</span> {s.pin}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedSlotPin && (
+                        <p className="text-[9px] font-black text-[#ee6996] ml-1 italic">
+                          Selected: Slot {selectedSlotPin.slot} — Pin {selectedSlotPin.pin}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Submit Button */}
                   <button
                     onClick={handleSubmitApproval}
@@ -376,6 +435,7 @@ export default function StockPanel() {
                     {submitting ? 'Submitting...' : 'Submit for Approval'}
                   </button>
                 </div>
+                )
               )}
             </>
           )}
