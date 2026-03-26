@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.19.0",
     "@tailwindcss/vite": "^4.2.2",
+    "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
     "firebase": "^12.11.0",
     "lucide-react": "^0.577.0",

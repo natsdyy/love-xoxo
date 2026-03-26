@@ -3,8 +3,8 @@ import { ChevronDown, Upload } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { subscribeToStocks, updateStock, type Stock } from '../../lib/stockService';
 import { addSale } from '../../lib/transactionService';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+import imageCompression from 'browser-image-compression';
 
 export default function StockPanel() {
   const username = localStorage.getItem('username') || 'unknown';
@@ -45,19 +45,39 @@ export default function StockPanel() {
     }
   }, [selectedStock]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setReceiptFiles(Array.from(e.target.files));
-    }
-  };
+
 
   const uploadReceipts = async (): Promise<string[]> => {
     const urls: string[] = [];
+    
+    // Extra compression to ensure multiple receipts fit comfortably within Firestore's 1MB document limit
+    const options = {
+      maxSizeMB: 0.1, // ~100KB max size
+      maxWidthOrHeight: 800,
+      useWebWorker: true,
+      fileType: 'image/jpeg'
+    };
+
     for (const file of receiptFiles) {
-      const storageRef = ref(storage, `receipts/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
-      urls.push(url);
+      let fileToUpload = file;
+      try {
+        if (file.type.startsWith('image/')) {
+          fileToUpload = await imageCompression(file, options);
+        }
+      } catch (error) {
+        console.warn('Image compression failed, using original file:', error);
+      }
+
+      // Convert to Base64 string directly instead of using Firebase Storage
+      // This bypasses the CORS issue entirely and stores images directly in the Firebase Database
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(fileToUpload);
+      });
+      
+      urls.push(dataUrl);
     }
     return urls;
   };
@@ -292,17 +312,54 @@ export default function StockPanel() {
                       <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Image of Receipt / Screenshot <span className="text-[#ee6996]">*</span></label>
                       <span className="text-[9px] font-black text-pink-300 uppercase tracking-tighter">(Max 10)</span>
                     </div>
+
+                    {/* Previews */}
+                    {receiptFiles.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        {receiptFiles.map((file, i) => (
+                          <div key={i} className="relative aspect-video bg-slate-100 rounded-xl overflow-hidden group">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt={`Preview ${i + 1}`} 
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setReceiptFiles(prev => prev.filter((_, index) => index !== i));
+                              }}
+                              className="absolute top-2 right-2 w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <span className="text-xs font-bold leading-none -mt-0.5">×</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <label className="relative flex flex-col items-center justify-center w-full h-20 bg-slate-50 border-2 border-dashed border-pink-200 rounded-2xl cursor-pointer hover:bg-pink-50/30 transition-all group">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996] group-hover:scale-110 transition-transform">
                           <Upload size={14} strokeWidth={3} />
                         </div>
                         <span className="text-[10px] font-black text-[#ee6996] uppercase tracking-widest">
-                          {receiptFiles.length > 0 ? `${receiptFiles.length} Files Selected` : 'Choose Files'}
+                          {receiptFiles.length > 0 ? `Add More Files (${receiptFiles.length}/10)` : 'Choose Files'}
                         </span>
                         {receiptFiles.length === 0 && <span className="text-[9px] font-bold text-slate-300 italic ml-1 leading-none -mb-0.5">no files selected</span>}
                       </div>
-                      <input type="file" multiple onChange={handleFileChange} className="hidden" accept="image/*" />
+                      <input 
+                        type="file" 
+                        multiple 
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const newFiles = Array.from(e.target.files);
+                            setReceiptFiles(prev => [...prev, ...newFiles].slice(0, 10));
+                          }
+                        }} 
+                        className="hidden" 
+                        accept="image/*" 
+                      />
                     </label>
                   </div>
 
