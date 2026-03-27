@@ -65,7 +65,7 @@ export default function Inventory() {
 
   useEffect(() => {
     const unsubscribe = subscribeToStocks((fetchedStocks) => {
-      setStocks(fetchedStocks.filter(s => s.status === 'available'));
+      setStocks(fetchedStocks.filter(s => s.status === 'available' || s.status === 'reserved'));
     });
     return () => unsubscribe();
   }, []);

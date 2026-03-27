@@ -120,14 +120,12 @@ export default function StockPanel() {
         createdAt: new Date(),
       });
 
-      // ✅ Immediately deduct stock on submission to prevent double-selling
+      // ✅ Deduct stock on submission. Status only changes to 'sold' if everything is gone.
       const qty = parseInt(quantity) || 1;
       const newQty = Math.max(0, (selectedStock.quantity || 1) - qty);
       await updateStock(selectedStock.id!, {
         quantity: newQty,
-        // Mark as 'reserved' so it disappears from the Stock Panel dropdown immediately.
-        // If stock reaches 0, mark as 'sold' so it can't be selected at all.
-        status: newQty === 0 ? 'sold' : 'reserved',
+        status: newQty === 0 ? 'sold' : 'available',
       });
 
       toast.success('✅ Sale submitted for approval!', {
