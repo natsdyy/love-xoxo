@@ -14,9 +14,8 @@ import { getAllUsers } from '../../lib/firebaseAuth';
 // --- Date Utilities ---
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sun
-  const diff = (day + 6) % 7; // Mon=0
-  d.setDate(d.getDate() - diff);
+  const day = d.getDay(); // 0=Sun, 1=Mon, etc.
+  d.setDate(d.getDate() - day); // Subtracting day gets us to Sunday
   d.setHours(0, 0, 0, 0);
   return d;
 }
