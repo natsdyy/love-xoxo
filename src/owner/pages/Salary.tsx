@@ -48,6 +48,18 @@ function getWeeksForMonth(year: number, month: number): { start: Date; end: Date
   return weeks;
 }
 
+function getWeeksForRange(startD: Date, endD: Date): { start: Date; end: Date }[] {
+  const weeks: { start: Date; end: Date }[] = [];
+  let weekStart = getWeekStart(startD);
+  const finalEnd = getWeekEnd(endD);
+  while (weekStart <= finalEnd) {
+    const weekEnd = getWeekEnd(weekStart);
+    weeks.push({ start: new Date(weekStart), end: new Date(weekEnd) });
+    weekStart.setDate(weekStart.getDate() + 7);
+  }
+  return weeks;
+}
+
 function getSaleDate(sale: Sale): Date {
   if (!sale.createdAt) return new Date(0);
   return sale.createdAt.toDate ? sale.createdAt.toDate() : new Date(sale.createdAt);
@@ -63,6 +75,9 @@ export default function Salary() {
   const today = new Date();
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
+
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
 
   useEffect(() => {
     const unsubSales = subscribeToSales((data) => setSales(data));
@@ -132,8 +147,11 @@ export default function Salary() {
     return { sales: sales_, profit, salary };
   };
 
-  // --- Monthly Weekly Breakdown per admin ---
-  const weeks = getWeeksForMonth(viewYear, viewMonth);
+  // --- Monthly / Custom Weekly Breakdown per admin ---
+  const isCustomRange = filterStartDate && filterEndDate;
+  const weeks = isCustomRange
+    ? getWeeksForRange(new Date(filterStartDate), new Date(filterEndDate))
+    : getWeeksForMonth(viewYear, viewMonth);
 
   const getWeekMetrics = (adminName: string, weekStart: Date, weekEnd: Date) => {
     const weekSales = approvedSales.filter(s => {
@@ -164,9 +182,13 @@ export default function Salary() {
     }, { sales: 0, capital: 0, profit: 0, salary: 0 });
   };
 
+  const activeAdminNames = admins.map(a => a.displayName);
+  const salesAdminNames = Array.from(new Set(approvedSales.filter(s => s.adminName).map(s => s.adminName)));
+  const allAdminNames = Array.from(new Set([...activeAdminNames, ...salesAdminNames]));
+
   // Global totals for current month
-  const globalMonthly = admins.reduce((acc, a) => {
-    const m = getMonthlyTotal(a.displayName);
+  const globalMonthly = allAdminNames.reduce((acc, adminName) => {
+    const m = getMonthlyTotal(adminName);
     acc.profit += m.profit;
     acc.salary += m.salary;
     return acc;
@@ -196,15 +218,23 @@ export default function Salary() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {admins.map((admin, i) => {
-            const m = getCurrentWeekMetrics(admin.displayName);
+          {allAdminNames.map((adminName, i) => {
+            const m = getCurrentWeekMetrics(adminName);
+            const isUnregistered = !activeAdminNames.includes(adminName);
             return (
-              <div key={admin.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-pink-50 hover:shadow-lg hover:shadow-pink-100 transition-all duration-300">
+              <div key={adminName} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-pink-50 hover:shadow-lg hover:shadow-pink-100 transition-all duration-300">
                 <div className="flex items-center gap-4 mb-7">
                   <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-base ${colors[i % colors.length]}`}>
-                    {admin.displayName.charAt(0).toUpperCase()}
+                    {adminName.charAt(0).toUpperCase()}
                   </div>
-                  <h3 className="text-base font-black text-slate-700">{admin.displayName}</h3>
+                  <div>
+                    <h3 className="text-base font-black text-slate-700 leading-tight">
+                      {adminName}
+                    </h3>
+                    {isUnregistered && (
+                       <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-sm">Unregistered</span>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
@@ -224,7 +254,7 @@ export default function Salary() {
             );
           })}
 
-          {admins.length === 0 && (
+          {allAdminNames.length === 0 && (
             <div className="col-span-full py-12 bg-pink-50/20 rounded-[2.5rem] border-2 border-dashed border-pink-100 flex items-center justify-center">
               <p className="text-slate-400 font-bold italic">No admins found</p>
             </div>
@@ -260,44 +290,88 @@ export default function Salary() {
         </div>
       </div>
 
-      {/* ── Monthly Breakdown per Admin ── */}
+      {/* ── Monthly / Custom Range Breakdown per Admin ── */}
       <section className="space-y-5">
-        {/* Month Navigator */}
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-3">
-            <TrendingUp className="text-[#ee6996]" size={20} strokeWidth={2.5} />
-            <h2 className="text-xl font-black text-slate-800 tracking-tight">Monthly</h2>
+        {/* Controls Layout */}
+        <div className="flex flex-col md:flex-row items-center justify-between px-1 gap-4">
+          <div className="flex items-center gap-3 w-full md:w-auto overflow-hidden">
+            <TrendingUp className="text-[#ee6996] flex-shrink-0" size={20} strokeWidth={2.5} />
+            <h2 className="text-xl font-black text-slate-800 tracking-tight truncate">
+              {isCustomRange ? 'Custom Range' : 'Monthly'}
+            </h2>
           </div>
-          <div className="flex items-center gap-3 bg-pink-50/40 px-4 py-2 rounded-2xl border border-pink-100/50">
-            <button onClick={prevMonth} className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#ee6996] shadow-sm hover:scale-110 active:scale-95 transition-all">
-              <ChevronLeft size={16} strokeWidth={3} />
-            </button>
-            <span className="text-sm font-black text-[#4a1d4a] min-w-[140px] text-center">{monthLabel}</span>
-            <button onClick={nextMonth} className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#ee6996] shadow-sm hover:scale-110 active:scale-95 transition-all">
-              <ChevronRight size={16} strokeWidth={3} />
-            </button>
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+             {/* Custom Date Pickers */}
+             <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className={`bg-white border-2 rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none transition-all shadow-sm ${
+                  filterStartDate ? 'border-[#ee6996] text-[#ee6996]' : 'border-pink-50 text-slate-500'
+                }`}
+                title="Start Date"
+              />
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">to</span>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className={`bg-white border-2 rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none transition-all shadow-sm ${
+                  filterEndDate ? 'border-[#ee6996] text-[#ee6996]' : 'border-pink-50 text-slate-500'
+                }`}
+                title="End Date"
+              />
+              {(filterStartDate || filterEndDate) && (
+                <button
+                  onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                  className="text-[10px] font-black text-slate-400 hover:text-red-400 uppercase tracking-widest pl-2"
+                >
+                  Clear
+                </button>
+              )}
+             </div>
+
+            {/* Month Navigator (Hide if using proper custom range) */}
+            {!isCustomRange && (
+              <div className="flex items-center gap-3 bg-pink-50/40 px-4 py-2 rounded-2xl border border-pink-100/50">
+                <button onClick={prevMonth} className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#ee6996] shadow-sm hover:scale-110 active:scale-95 transition-all">
+                  <ChevronLeft size={16} strokeWidth={3} />
+                </button>
+                <span className="text-sm font-black text-[#4a1d4a] min-w-[140px] text-center">{monthLabel}</span>
+                <button onClick={nextMonth} className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#ee6996] shadow-sm hover:scale-110 active:scale-95 transition-all">
+                  <ChevronRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Per-admin weekly breakdown */}
         <div className="space-y-4">
-          {admins.map((admin, i) => {
-            const isExpanded = expandedAdmins[admin.id] !== false; // default expanded
-            const monthly = getMonthlyTotal(admin.displayName);
+          {allAdminNames.map((adminName, i) => {
+            const isExpanded = expandedAdmins[adminName] !== false; // default expanded
+            const monthly = getMonthlyTotal(adminName);
+            const isUnregistered = !activeAdminNames.includes(adminName);
             return (
-              <div key={admin.id} className="bg-white rounded-[2rem] border border-pink-50 shadow-sm overflow-hidden">
+              <div key={adminName} className="bg-white rounded-[2rem] border border-pink-50 shadow-sm overflow-hidden">
                 {/* Admin Header */}
                 <button
-                  onClick={() => toggleAdmin(admin.id)}
+                  onClick={() => toggleAdmin(adminName)}
                   className="w-full px-8 py-5 flex items-center justify-between hover:bg-pink-50/30 transition-all"
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm ${colors[i % colors.length]}`}>
-                      {admin.displayName.charAt(0).toUpperCase()}
+                      {adminName.charAt(0).toUpperCase()}
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-black text-[#ee6996]">{admin.displayName}'s Weekly Breakdown</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Monthly Total: ₱{monthly.salary.toFixed(2)}</p>
+                      <p className="text-sm font-black text-[#ee6996]">
+                        {adminName}'s Weekly Breakdown {isUnregistered && <span className="text-[9px] ml-1 bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded text-slate-500 font-bold">Unreg</span>}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {isCustomRange ? 'Range Total' : 'Monthly Total'}: ₱{monthly.salary.toFixed(2)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -326,7 +400,7 @@ export default function Salary() {
                       </thead>
                       <tbody className="divide-y divide-pink-50/30">
                         {weeks.map((w, wi) => {
-                          const m = getWeekMetrics(admin.displayName, w.start, w.end);
+                          const m = getWeekMetrics(adminName, w.start, w.end);
                           return (
                             <tr key={wi} className="hover:bg-pink-50/10 transition-colors">
                               <td className="px-6 py-4">
@@ -363,7 +437,9 @@ export default function Salary() {
                         {/* Monthly Total Row */}
                         <tr className="bg-pink-50/30 border-t-2 border-pink-100">
                           <td className="px-6 py-4">
-                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Monthly Total ({new Date(viewYear, viewMonth).toLocaleString('en-US', { month: 'long' })})</span>
+                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                              {isCustomRange ? 'Range Total' : `Monthly Total (${new Date(viewYear, viewMonth).toLocaleString('en-US', { month: 'long' })})`}
+                            </span>
                           </td>
                           <td className="px-4 py-4 text-center">
                             <span className="text-[11px] font-black text-slate-700">₱{monthly.sales.toLocaleString()}</span>
@@ -385,8 +461,7 @@ export default function Salary() {
               </div>
             );
           })}
-
-          {admins.length === 0 && (
+          {allAdminNames.length === 0 && (
             <div className="py-12 bg-pink-50/20 rounded-[2.5rem] border-2 border-dashed border-pink-100 flex items-center justify-center">
               <p className="text-slate-400 font-bold italic">No admins registered yet</p>
             </div>

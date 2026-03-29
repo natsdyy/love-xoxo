@@ -346,13 +346,21 @@ export default function Sold() {
 
   const totalRevenue = filteredSales.reduce((acc, tx) => acc + (tx.totalPrice || 0), 0);
   
-  // Grouping logic — show all active admins (even 0 sales), unless a specific admin is filtered
+  // Grouping logic:
+  // - Always include all active admin displayNames (even those with 0 sales)
+  // - Also include any adminName from actual sales that isn't in the active list
+  //   (e.g. owner's sales, or renamed/old admins whose records should stay visible)
   const activeAdminNames = admins.map(a => a.displayName);
+  const salesAdminNames = Array.from(new Set(sales.map(s => s.adminName)));
+  // Union: actives first, then any orphaned names from sales not already listed
+  const allAdminNames = [
+    ...activeAdminNames,
+    ...salesAdminNames.filter(n => !activeAdminNames.includes(n))
+  ];
+
   const adminNamesToShow = adminFilter
     ? [adminFilter]
-    : activeAdminNames.length > 0
-      ? activeAdminNames
-      : Array.from(new Set(filteredSales.map(s => s.adminName)));
+    : allAdminNames;
 
   const salesByAdmin = adminNamesToShow.reduce((acc, name) => {
     acc[name] = filteredSales.filter(s => s.adminName === name);
@@ -451,9 +459,9 @@ export default function Sold() {
                 }`}
               >
                 <option value="">All Admins</option>
-                {admins.map(admin => (
-                  <option key={admin.id} value={admin.displayName}>
-                    {admin.displayName}
+                {allAdminNames.map(name => (
+                  <option key={name} value={name}>
+                    {name}{!activeAdminNames.includes(name) ? ' (unregistered)' : ''}
                   </option>
                 ))}
               </select>
