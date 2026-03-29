@@ -65,8 +65,8 @@ function CustomSelect({
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [open]);
 
   const selected = options.find((o) => o.value === value);
@@ -98,6 +98,7 @@ function CustomSelect({
             width: coords.width,
             zIndex: 9999,
           }}
+          onMouseDown={(e) => e.stopPropagation()}
           className="bg-white border border-pink-100 rounded-2xl shadow-xl py-1 max-h-52 overflow-y-auto shadow-pink-200/50"
         >
           {options.map((opt) => (
@@ -200,11 +201,11 @@ export default function Sold() {
   };
 
   const updateItem = (id: string, field: keyof SaleItem, value: any) => {
-    setItems(items.map(i => i.id === id ? { ...i, [field]: value } : i));
+    setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
   const toggleManual = (id: string, field: string) => {
-    setItems(items.map(i => {
+    setItems(prev => prev.map(i => {
       if (i.id === id) {
         const manualFields = i.manualFields || [];
         const isManual = manualFields.includes(field);

@@ -14,6 +14,8 @@ interface ItemEntry {
   slotEntries: Array<{ id: number; qty: number; slot: string; pin: string }>;
 }
 
+const SLOT_PIN_SERVICES = ['netflix', 'disney+', 'hbo max', 'prime video'];
+
 
 export default function NewStocks() {
   const username = localStorage.getItem('username') || 'unknown';
@@ -186,8 +188,6 @@ export default function NewStocks() {
       
       if (isBulkMode) {
         const emails = bulkEmails.split('\n').map(e => e.trim()).filter(Boolean);
-        const qty = parseInt(bulkQuantity) || 1;
-        
         for (const emailAddr of emails) {
           const slots = bulkSlots
             .filter(entry => entry.slot && entry.pin)
@@ -195,6 +195,11 @@ export default function NewStocks() {
               slot: entry.slot,
               pin: entry.pin
             }));
+
+          const isSlotPinService = SLOT_PIN_SERVICES.includes(service.toLowerCase());
+          const qty = isSlotPinService 
+            ? (bulkSlots.reduce((sum, s) => sum + (s.qty || 0), 0) || 1)
+            : (parseInt(bulkQuantity) || 1);
 
           await addStock({
             service: service,
@@ -223,6 +228,11 @@ export default function NewStocks() {
               pin: entry.pin
             }));
 
+          const isSlotPinService = SLOT_PIN_SERVICES.includes(service.toLowerCase());
+          const finalItemQty = isSlotPinService
+            ? (item.slotEntries.reduce((sum, s) => sum + (s.qty || 0), 0) || 1)
+            : (parseInt(item.quantity) || 1);
+
           await addStock({
             service: service,
             serviceCategory: category,
@@ -230,7 +240,7 @@ export default function NewStocks() {
             email: email,
             password: password,
             category: item.category,
-            quantity: parseInt(item.quantity) || 1,
+            quantity: finalItemQty,
             price: parseFloat(item.price),
             devices: [item.devices || '1'],
             ...(slots.length > 0 ? { slots } : {}),
@@ -518,18 +528,20 @@ export default function NewStocks() {
 
             {isBulkMode && (
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                    Quantity <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="number"
-                    placeholder="1"
-                    value={bulkQuantity}
-                    onChange={(e) => setBulkQuantity(e.target.value)}
-                    className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !bulkQuantity ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
-                  />
-                </div>
+                { !SLOT_PIN_SERVICES.includes(service.toLowerCase()) && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                      Quantity <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      type="number"
+                      placeholder="1"
+                      value={bulkQuantity}
+                      onChange={(e) => setBulkQuantity(e.target.value)}
+                      className={`w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm text-slate-600 focus:outline-none focus:ring-2 transition-all ${showValidation && !bulkQuantity ? 'border-2 border-red-500 focus:ring-red-500/20' : 'border border-pink-100 focus:ring-pink-500/20'}`}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                     Price (₱) <span className="text-red-500">*</span>
@@ -627,66 +639,68 @@ export default function NewStocks() {
                 </div>
 
                 {/* Bulk Slot & Pin Entries */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
-                    <button 
-                      onClick={() => setBulkSlots(prev => [...prev, { id: Date.now(), qty: 1, slot: '', pin: '' }])}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
-                    >
-                      <Plus size={12} strokeWidth={3} />
-                      Add Slot/Pin
-                    </button>
+                {SLOT_PIN_SERVICES.includes(service.toLowerCase()) && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
+                      <button 
+                        onClick={() => setBulkSlots(prev => [...prev, { id: Date.now(), qty: 1, slot: '', pin: '' }])}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
+                      >
+                        <Plus size={12} strokeWidth={3} />
+                        Add Slot/Pin
+                      </button>
+                    </div>
+                    
+                    {bulkSlots.length === 0 ? (
+                      <div className="text-center py-6 bg-white/50 rounded-2xl border border-dashed border-pink-100">
+                        <p className="text-xs text-slate-400 font-bold">Click 'Add Slot/Pin' to add slot & pin entries</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {bulkSlots.map((entry, index) => (
+                          <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
+                            <div className="w-20 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
+                              <input 
+                                type="number" 
+                                value={entry.qty}
+                                onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, qty: parseInt(e.target.value) || 1 } : s))}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
+                              <input 
+                                type="text" 
+                                placeholder="Slot"
+                                value={entry.slot}
+                                onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, slot: e.target.value } : s))}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                              {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
+                              <input 
+                                type="text" 
+                                placeholder="Pin"
+                                value={entry.pin}
+                                onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, pin: e.target.value } : s))}
+                                className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                              />
+                            </div>
+                            <button 
+                              onClick={() => setBulkSlots(bulkSlots.filter(s => s.id !== entry.id))}
+                              className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <X size={16} strokeWidth={3} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  
-                  {bulkSlots.length === 0 ? (
-                    <div className="text-center py-6 bg-white/50 rounded-2xl border border-dashed border-pink-100">
-                      <p className="text-xs text-slate-400 font-bold">Click 'Add Slot/Pin' to add slot & pin entries</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {bulkSlots.map((entry, index) => (
-                        <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
-                          <div className="w-20 space-y-1.5">
-                            {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
-                            <input 
-                              type="number" 
-                              value={entry.qty}
-                              onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, qty: parseInt(e.target.value) || 1 } : s))}
-                              className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                            />
-                          </div>
-                          <div className="flex-1 space-y-1.5">
-                            {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
-                            <input 
-                              type="text" 
-                              placeholder="Slot"
-                              value={entry.slot}
-                              onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, slot: e.target.value } : s))}
-                              className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                            />
-                          </div>
-                          <div className="flex-1 space-y-1.5">
-                            {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
-                            <input 
-                              type="text" 
-                              placeholder="Pin"
-                              value={entry.pin}
-                              onChange={(e) => setBulkSlots(bulkSlots.map(s => s.id === entry.id ? { ...s, pin: e.target.value } : s))}
-                              className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                            />
-                          </div>
-                          <button 
-                            onClick={() => setBulkSlots(bulkSlots.filter(s => s.id !== entry.id))}
-                            className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
-                          >
-                            <X size={16} strokeWidth={3} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Bulk Item Notes */}
                 <div className="space-y-2">
@@ -881,18 +895,20 @@ export default function NewStocks() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2 pt-1">
-                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                            Quantity <span className="text-red-500">*</span>
-                          </label>
-                          <input 
-                            type="number" 
-                            placeholder="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
-                            className={`w-full bg-white rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.quantity ? 'border-2 border-red-500 focus:ring-red-500/20 shadow-inner' : 'border-2 border-pink-50 focus:ring-pink-500/20 focus:border-[#ee6996]'}`}
-                          />
-                        </div>
+                        { !SLOT_PIN_SERVICES.includes(service.toLowerCase()) && (
+                          <div className="space-y-2 pt-1">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                              Quantity <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              type="number" 
+                              placeholder="1"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
+                              className={`w-full bg-white rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 transition-all ${showValidation && !item.quantity ? 'border-2 border-red-500 focus:ring-red-500/20 shadow-inner' : 'border-2 border-pink-50 focus:ring-pink-500/20 focus:border-[#ee6996]'}`}
+                            />
+                          </div>
+                        )}
                         <div className="space-y-2 pt-1">
                           <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
                             Price (₱) <span className="text-red-500">*</span>
@@ -910,66 +926,68 @@ export default function NewStocks() {
                     </div>
 
                     {/* Slot & Pin Entries */}
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
-                        <button 
-                          onClick={() => addSlotToItem(item.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
-                        >
-                          <Plus size={12} strokeWidth={3} />
-                          Add Slot/Pin
-                        </button>
+                    {SLOT_PIN_SERVICES.includes(service.toLowerCase()) && (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-700 ml-1">Slot & Pin Entries</span>
+                          <button 
+                            onClick={() => addSlotToItem(item.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-[#ee6996] rounded-xl text-[10px] font-black uppercase tracking-widest border border-pink-100 hover:bg-pink-100 transition-all shadow-sm"
+                          >
+                            <Plus size={12} strokeWidth={3} />
+                            Add Slot/Pin
+                          </button>
+                        </div>
+                        
+                        {item.slotEntries.length === 0 ? (
+                          <div className="text-center py-6 bg-white/50 rounded-2xl border border-dashed border-pink-100">
+                            <p className="text-xs text-slate-400 font-bold">Click 'Add Slot/Pin' to add slot & pin entries</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {item.slotEntries.map((entry, index) => (
+                              <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
+                                <div className="w-20 space-y-1.5">
+                                  {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
+                                  <input 
+                                    type="number" 
+                                    value={entry.qty}
+                                    onChange={(e) => updateSlotEntry(item.id, entry.id, 'qty', e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-1.5">
+                                  {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
+                                  <input 
+                                    type="text" 
+                                    placeholder="Slot"
+                                    value={entry.slot}
+                                    onChange={(e) => updateSlotEntry(item.id, entry.id, 'slot', e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-1.5">
+                                  {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
+                                  <input 
+                                    type="text" 
+                                    placeholder="Pin"
+                                    value={entry.pin}
+                                    onChange={(e) => updateSlotEntry(item.id, entry.id, 'pin', e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
+                                  />
+                                </div>
+                                <button 
+                                  onClick={() => removeSlotFromItem(item.id, entry.id)}
+                                  className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
+                                >
+                                  <X size={16} strokeWidth={3} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      
-                      {item.slotEntries.length === 0 ? (
-                        <div className="text-center py-6 bg-white/50 rounded-2xl border border-dashed border-pink-100">
-                          <p className="text-xs text-slate-400 font-bold">Click 'Add Slot/Pin' to add slot & pin entries</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {item.slotEntries.map((entry, index) => (
-                            <div key={entry.id} className="flex items-end gap-3 group animate-in slide-in-from-top-1 duration-200">
-                              <div className="w-20 space-y-1.5">
-                                {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty</label>}
-                                <input 
-                                  type="number" 
-                                  value={entry.qty}
-                                  onChange={(e) => updateSlotEntry(item.id, entry.id, 'qty', e.target.value)}
-                                  className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                                />
-                              </div>
-                              <div className="flex-1 space-y-1.5">
-                                {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Slot</label>}
-                                <input 
-                                  type="text" 
-                                  placeholder="Slot"
-                                  value={entry.slot}
-                                  onChange={(e) => updateSlotEntry(item.id, entry.id, 'slot', e.target.value)}
-                                  className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                                />
-                              </div>
-                              <div className="flex-1 space-y-1.5">
-                                {index === 0 && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin</label>}
-                                <input 
-                                  type="text" 
-                                  placeholder="Pin"
-                                  value={entry.pin}
-                                  onChange={(e) => updateSlotEntry(item.id, entry.id, 'pin', e.target.value)}
-                                  className="w-full bg-white border border-pink-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all"
-                                />
-                              </div>
-                              <button 
-                                onClick={() => removeSlotFromItem(item.id, entry.id)}
-                                className="p-2.5 mb-0.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-all"
-                              >
-                                <X size={16} strokeWidth={3} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    )}
 
                     {/* Item Notes */}
                     <div className="space-y-2">

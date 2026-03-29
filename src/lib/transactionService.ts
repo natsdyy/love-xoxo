@@ -19,6 +19,7 @@ export interface Sale {
   status: 'pending' | 'approved' | 'refunded';
   receipt?: string[]; // URLs to uploaded images
   notes?: string;
+  devices?: string;
   createdAt?: any;
   approvedAt?: any;
   refundedAt?: any;
@@ -128,7 +129,7 @@ export const addSale = async (sale: Omit<Sale, 'id'>) => {
   try {
     const docRef = await addDoc(collection(db, 'sales'), {
       ...sale,
-      createdAt: Timestamp.now(),
+      createdAt: sale.createdAt || Timestamp.now(),
     });
     return docRef.id;
   } catch (error) {

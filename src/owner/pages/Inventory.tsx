@@ -42,6 +42,11 @@ export default function Inventory() {
   const [manualFields, setManualFields] = useState<string[]>([]);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'mid' | 'high'>('all');
+  const [expandedServices, setExpandedServices] = useState<Record<string, boolean>>({});
+
+  const toggleServiceExpand = (service: string) => {
+    setExpandedServices(prev => ({ ...prev, [service]: !prev[service] }));
+  };
 
   const getStockLevel = (qty: number): 'low' | 'mid' | 'high' => {
     if (qty <= 2) return 'low';
@@ -399,6 +404,16 @@ export default function Inventory() {
 
   const headers = ['Supplier', 'Service', 'Category', 'Duration', 'Price', 'Qty', 'Status', 'Actions'];
 
+  const handleDeleteAll = async () => {
+    if (!window.confirm('Are you sure you want to delete all historical records? This cannot be undone.')) return;
+    try {
+      await Promise.all(orders.map(o => deleteOrder(o.id!)));
+      toast.success('All records deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete all records');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12 p-6">
 
@@ -458,91 +473,131 @@ export default function Inventory() {
         const filtered = stockFilter === 'all' ? stocks : stockFilter === 'low' ? low : stockFilter === 'mid' ? mid : high;
 
         return (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden mb-6">
-            <div className="px-8 py-6 border-b border-pink-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-[#4a1d4a] tracking-tight">Stock Level Monitor</h2>
-                <p className="text-xs text-slate-500 font-medium italic">Real-time view of available stock quantities</p>
-              </div>
-              {/* Summary pills */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {[
-                  { key: 'all', label: 'All', count: stocks.length, color: 'bg-slate-100 text-slate-600 hover:bg-slate-200' },
-                  { key: 'low', label: 'Low Stock', count: low.length, color: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100' },
-                  { key: 'mid', label: 'Mid Stock', count: mid.length, color: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-100' },
-                  { key: 'high', label: 'High Stock', count: high.length, color: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-100' },
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setStockFilter(tab.key as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab.color} ${stockFilter === tab.key ? 'ring-2 ring-offset-1 ring-current' : ''}`}
-                  >
-                    {tab.label} ({tab.count})
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-6 overflow-x-auto">
-              {filtered.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm font-medium">
-                  No stocks in this category
+          <div className="space-y-6 mb-12">
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
+              <div className="px-10 py-8 border-b border-pink-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                  <h2 className="text-2xl font-black text-[#4a1d4a] tracking-tight">Stock Level Monitor</h2>
+                  <p className="text-sm text-slate-500 font-medium italic">Real-time view of available stock quantities by service.</p>
                 </div>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-[#fff9fb]">
-                      {['Service', 'Email', 'Category', 'Duration', 'Price', 'Qty', 'Level'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-[#ee6996] uppercase tracking-widest first:rounded-l-xl last:rounded-r-xl">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(stock => {
-                      const level = getStockLevel(stock.quantity);
-                      const levelStyles = {
-                        low: { badge: 'bg-red-100 text-red-600 border-red-200', bar: 'bg-red-400', label: 'Low Stock' },
-                        mid: { badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', bar: 'bg-yellow-400', label: 'Mid Stock' },
-                        high: { badge: 'bg-green-100 text-green-700 border-green-200', bar: 'bg-green-400', label: 'High Stock' },
-                      }[level];
-                      return (
-                        <tr key={stock.id} className="border-b border-pink-50/60 hover:bg-pink-50/10 transition-colors">
-                          <td className="px-4 py-3">
-                            <span className="text-sm font-bold text-slate-700 capitalize">{stock.service}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-xs font-medium text-slate-500 truncate max-w-[120px] block">{stock.email}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stock.category}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-lg border border-pink-50">{stock.duration}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-sm font-black text-slate-700">₱{stock.price}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-12 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${levelStyles.bar}`} style={{ width: `${Math.min(100, (stock.quantity / 10) * 100)}%` }} />
-                              </div>
-                              <span className="text-xs font-black text-slate-600">{stock.quantity}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${levelStyles.badge}`}>
-                              {levelStyles.label}
+                {/* Summary pills */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { key: 'all', label: 'All', count: stocks.length, color: 'bg-slate-100 text-slate-600 hover:bg-slate-200' },
+                    { key: 'low', label: 'Low Stock', count: low.length, color: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100' },
+                    { key: 'mid', label: 'Mid Stock', count: mid.length, color: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-100' },
+                    { key: 'high', label: 'High Stock', count: high.length, color: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-100' },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setStockFilter(tab.key as any)}
+                      className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${tab.color} ${stockFilter === tab.key ? 'ring-2 ring-offset-2 ring-current ring-slate-300 shadow-sm' : ''}`}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-10 space-y-6 bg-slate-50/30">
+                {filtered.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm font-medium bg-white rounded-3xl border border-pink-50/50">
+                    No available stocks match your criteria.
+                  </div>
+                ) : (
+                  Object.entries(
+                    filtered.reduce((acc, stock) => {
+                      if (!acc[stock.service]) acc[stock.service] = [];
+                      acc[stock.service].push(stock);
+                      return acc;
+                    }, {} as Record<string, Stock[]>)
+                  ).map(([service, serviceStocks]) => {
+                    const isExpanded = expandedServices[service] ?? true;
+                    const totalQty = serviceStocks.reduce((sum, s) => sum + s.quantity, 0);
+                    
+                    return (
+                      <div key={service} className="bg-white rounded-[2rem] shadow-sm border border-pink-50 overflow-hidden transition-all duration-300">
+                        {/* Service Header */}
+                        <div 
+                          onClick={() => toggleServiceExpand(service)}
+                          className="px-8 py-5 flex items-center justify-between cursor-pointer hover:bg-pink-50/20 transition-colors group"
+                        >
+                          <div className="flex items-center gap-4">
+                            <h3 className="text-lg font-black text-[#4a1d4a] capitalize">{service}</h3>
+                            <span className="px-3 py-1 bg-pink-50 text-[#ee6996] text-[10px] font-black uppercase tracking-widest rounded-full border border-pink-100">
+                              {serviceStocks.length} {serviceStocks.length === 1 ? 'stock' : 'stocks'}
                             </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                              Total Qty: <span className="text-slate-600 font-black">{totalQty}</span>
+                            </span>
+                            <div className={`p-2 rounded-xl bg-slate-50 text-slate-300 group-hover:text-[#ee6996] transition-all ${isExpanded ? 'rotate-180 bg-pink-50 text-[#ee6996]' : ''}`}>
+                              <ChevronDown size={18} strokeWidth={3} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Content */}
+                        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[1000px] border-t border-pink-50/50' : 'max-h-0'}`}>
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="bg-[#fffbfc] border-b border-pink-50">
+                                  {['Category', 'Email', 'Devices', 'Price', 'Qty', 'Status'].map(h => (
+                                    <th key={h} className="px-8 py-4 text-left text-[10px] font-black text-[#ee6996] uppercase tracking-widest">
+                                      {h}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {serviceStocks.map(stock => {
+                                  const level = getStockLevel(stock.quantity);
+                                  const levelStyles = {
+                                    low: { badge: 'bg-red-50 text-red-500 border-red-100', bar: 'bg-red-400', label: 'Low Stock' },
+                                    mid: { badge: 'bg-yellow-50 text-yellow-600 border-yellow-100', bar: 'bg-yellow-400', label: 'Mid Stock' },
+                                    high: { badge: 'bg-green-50 text-green-600 border-green-100', bar: 'bg-green-400', label: 'On Stock' },
+                                  }[level];
+                                  
+                                  return (
+                                    <tr key={stock.id} className="border-b border-pink-50/30 hover:bg-[#fff9fa] transition-colors last:border-0 text-gray-700">
+                                      <td className="px-8 py-6">
+                                        <span className="px-3 py-1 bg-pink-50/50 text-[#ee6996] text-[10px] font-black uppercase tracking-widest rounded-full border border-pink-100/50">
+                                          {stock.category}
+                                        </span>
+                                      </td>
+                                      <td className="px-8 py-6">
+                                        <span className="text-xs font-semibold text-slate-500 truncate max-w-[150px] block">{stock.email}</span>
+                                      </td>
+                                      <td className="px-8 py-6">
+                                        <span className="text-xs font-bold text-slate-600">
+                                          {stock.devices || '1 device'}
+                                        </span>
+                                      </td>
+                                      <td className="px-8 py-6">
+                                        <span className="text-base font-black text-[#ee6996]">₱{stock.price}</span>
+                                      </td>
+                                      <td className="px-8 py-6">
+                                        <span className="text-sm font-black text-slate-700">{stock.quantity}</span>
+                                      </td>
+                                      <td className="px-8 py-6">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 ${levelStyles.badge}`}>
+                                          {levelStyles.label}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         );
@@ -552,30 +607,39 @@ export default function Inventory() {
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
 
         {/* Header */}
-        <div className="px-8 py-8 border-b border-pink-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="px-10 py-10 border-b border-pink-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
-            <h1 className="text-xl font-bold text-[#4a1d4a] tracking-tight">Inventory Management</h1>
-            <p className="text-xs text-slate-500 font-medium italic">Monitor and manage supplier orders</p>
+            <h1 className="text-4xl font-extrabold text-[#4a1d4a] tracking-tight mb-1">Inventory Management</h1>
+            <p className="text-sm text-slate-500 font-medium italic">Monitor and manage supplier orders with historical precision.</p>
           </div>
           
-          <div className="flex items-center gap-3">
-             <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#ee6996] transition-colors" size={16} />
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+             <div className="relative group w-full md:w-72">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-pink-300 group-focus-within:text-[#ee6996] transition-colors" size={18} />
                 <input 
                   type="text" 
                   placeholder="Search inventory..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full md:w-64 shadow-sm"
+                  className="bg-slate-50 border-2 border-transparent rounded-full pl-12 pr-6 py-3 text-sm focus:outline-none focus:border-[#ee6996] focus:bg-white transition-all w-full shadow-inner"
                 />
               </div>
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="bg-[#ee6996] hover:bg-[#d55a84] text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-pink-200/50 hover:scale-[1.02] active:scale-[0.98] text-xs uppercase tracking-widest"
-              >
-                <Plus size={16} strokeWidth={3} />
-                Add Order
-              </button>
+
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <button
+                  onClick={handleDeleteAll}
+                  className="flex-1 md:flex-none px-6 py-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-full text-xs font-black uppercase tracking-widest transition-all border border-red-100/50"
+                >
+                  Delete All Records
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex-1 md:flex-none bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:brightness-110 text-white px-8 py-3 rounded-full flex items-center justify-center gap-2 font-black transition-all shadow-xl shadow-pink-200/50 hover:scale-[1.02] active:scale-[0.98] text-xs uppercase tracking-widest"
+                >
+                  <Plus size={18} strokeWidth={4} />
+                  Add Order
+                </button>
+              </div>
           </div>
         </div>
 
@@ -610,41 +674,39 @@ export default function Inventory() {
                   </tr>
                 ) : (
                   filteredOrders.map(order => (
-                    <tr key={order.id} className="border-b border-pink-50/60 hover:bg-pink-50/10 transition-colors">
-                      <td className="px-4 py-4">
-                        <span className="text-sm font-bold text-slate-700">{order.supplierName}</span>
+                    <tr key={order.id} className="border-b border-pink-50/40 hover:bg-[#fffcfd] transition-colors">
+                      <td className="px-6 py-5">
+                        <span className="text-sm font-bold text-slate-800">{order.supplierName}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="text-sm font-semibold text-slate-600">{order.service}</span>
-                        </div>
+                      <td className="px-6 py-5 text-center">
+                        <span className="text-sm font-bold text-[#ee6996]">{order.service}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{order.category}</span>
+                      <td className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {order.category}
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-pink-50">{order.duration}</span>
+                      <td className="px-6 py-5 text-center">
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100/80 px-3 py-1.5 rounded-full uppercase tracking-widest">{order.duration}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="text-sm font-black text-slate-700">₱{order.price.toLocaleString()}</span>
+                      <td className="px-6 py-5 text-center">
+                        <span className="text-sm font-black text-slate-800">₱{order.price.toLocaleString()}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-50 text-slate-500 font-bold text-xs ring-1 ring-slate-100">
+                      <td className="px-6 py-5 text-center">
+                        <span className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-pink-50/30 text-[#ee6996] font-black text-xs border border-pink-100/50">
                           {order.quantity}
-                        </div>
+                        </span>
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${STATUS_STYLE[order.status as OrderStatus] || 'bg-gray-50'}`}>
+                      <td className="px-6 py-5 text-center">
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 ${STATUS_STYLE[order.status as OrderStatus] || 'bg-gray-50 border-gray-100 text-gray-400'}`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => handleEditOpen(order)} className="p-2 hover:bg-blue-50 rounded-xl text-slate-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-100" title="Edit">
-                            <Edit2 size={13} />
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleEditOpen(order)} className="p-2.5 hover:bg-blue-50 rounded-2xl text-slate-300 hover:text-blue-500 transition-all border border-transparent hover:border-blue-100" title="Edit">
+                            <Edit2 size={14} strokeWidth={3} />
                           </button>
-                          <button onClick={() => setDeleteConfirmId(order.id || null)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
-                            <Trash2 size={13} />
+                          <button onClick={() => setDeleteConfirmId(order.id || null)} className="p-2.5 hover:bg-red-50 rounded-2xl text-slate-300 hover:text-red-500 transition-all border border-transparent hover:border-red-100" title="Delete">
+                            <Trash2 size={14} strokeWidth={3} />
                           </button>
                         </div>
                       </td>

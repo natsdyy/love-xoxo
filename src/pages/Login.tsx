@@ -38,6 +38,7 @@ export default function Login() {
         // Store in localStorage for quick access
         localStorage.setItem('userRole', user.role);
         localStorage.setItem('username', username);
+        localStorage.setItem('displayName', user.displayName);
         
         navigate(user.role === 'admin' ? '/admin' : '/owner');
       } else {

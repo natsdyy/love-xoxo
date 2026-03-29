@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, Upload } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { subscribeToStocks, updateStock, type Stock } from '../../lib/stockService';
+import { subscribeToStocks, updateStock, syncRelatedStocks, type Stock } from '../../lib/stockService';
 import { addSale } from '../../lib/transactionService';
 
 import imageCompression from 'browser-image-compression';
@@ -123,12 +123,22 @@ export default function StockPanel() {
       // ✅ Deduct stock on submission. Status only changes to 'sold' if everything is gone.
       const qty = parseInt(quantity) || 1;
       const newQty = Math.max(0, (selectedStock.quantity || 1) - qty);
+      
+      let updatedSlots = selectedStock.slots;
+      if (selectedSlotPin && updatedSlots) {
+        updatedSlots = updatedSlots.filter(s => !(s.slot === selectedSlotPin.slot && s.pin === selectedSlotPin.pin));
+      }
+
       await updateStock(selectedStock.id!, {
         quantity: newQty,
         status: newQty === 0 ? 'sold' : 'available',
+        ...(updatedSlots !== undefined ? { slots: updatedSlots } : {})
       });
 
-      toast.success('✅ Sale submitted for approval!', {
+      // ✅ Sync related stocks (different device counts, solo vs shared)
+      await syncRelatedStocks(selectedStock.id!, qty, selectedSlotPin || undefined);
+
+      toast.success('✅ Sale submitted and inventory synced!', {
         position: 'top-right',
         autoClose: 3000,
       });
@@ -194,7 +204,7 @@ export default function StockPanel() {
                         <optgroup key={cat} label={cat.toUpperCase()} className="font-black text-[10px] text-slate-300">
                           {catStocks.map(stock => (
                             <option key={stock.id} value={stock.id} className="text-slate-600 font-bold">
-                              {stock.email} ({stock.service} - {stock.duration})
+                              {stock.email} ({stock.service} - {stock.duration}) | {stock.category} | {stock.slots?.length ? `Slots: ${stock.slots.map(s => s.slot).join(',')}` : `${stock.devices?.[0] || '1'} dev`}
                             </option>
                           ))}
                         </optgroup>
@@ -217,8 +227,16 @@ export default function StockPanel() {
                       { label: 'SERVICE', value: selectedStock.service },
                       { label: 'DURATION', value: selectedStock.duration },
                       { label: 'PRICE', value: `₱${selectedStock.price}`, color: 'text-[#ee6996] font-black' },
+                      { label: 'CATEGORY', value: selectedStock.category, color: 'text-[#ee6996]' },
                       { label: 'DEVICES', value: `${selectedStock.devices?.[0] || 1} Screen(s)`, color: 'text-[#ee6996]' },
                       { label: 'AVAILABLE', value: selectedStock.quantity },
+                      ...(selectedStock.slots && selectedStock.slots.length > 0 ? [
+                        { 
+                          label: 'SLOTS', 
+                          value: selectedStock.slots.map(s => `Slot ${s.slot}`).join(', '),
+                          color: 'text-pink-500'
+                        }
+                      ] : [])
                     ].map((item, i) => (
                       <div key={i} className="flex justify-between items-center text-[11px]">
                         <span className="font-black text-slate-400 tracking-wider">{item.label}</span>

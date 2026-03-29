@@ -131,14 +131,85 @@ export const updateRelatedStocks = async (email: string, password: string, updat
     const querySnapshot = await getDocs(q);
     
     const updatePromises = querySnapshot.docs.map(doc => {
-      const stockRef = doc.id;
-      return updateStock(stockRef, updates);
+      return updateStock(doc.id, updates);
     });
     
     await Promise.all(updatePromises);
     console.log(`Updated ${updatePromises.length} related stocks for ${email}`);
   } catch (error) {
     console.error('Error updating related stocks:', error);
+    throw error;
+  }
+};
+
+/**
+ * Synchronizes inventory across related stock items (same email).
+ * Handles Solo Profile vs Shared logic and different device counts.
+ */
+export const syncRelatedStocks = async (soldStockId: string, quantitySold: number, soldSlot?: { slot: string; pin: string }) => {
+  try {
+    const mainStockSnap = await getDocs(query(collection(db, 'stocks'), where('__name__', '==', soldStockId)));
+    
+    if (mainStockSnap.empty) return;
+    const mainStock = { id: mainStockSnap.docs[0].id, ...mainStockSnap.docs[0].data() } as Stock;
+    
+    // Find related stocks: same email, (solo profile or shared categories)
+    const relatedCategories = ['solo profile', 'shared'];
+    const isRelatedCategory = relatedCategories.includes(mainStock.category.toLowerCase());
+    
+    const q = query(
+      collection(db, 'stocks'), 
+      where('email', '==', mainStock.email),
+      where('status', 'in', ['available', 'reserved'])
+    );
+    const querySnapshot = await getDocs(q);
+    
+    const updatePromises = querySnapshot.docs.map(async (docSnapshot) => {
+      const relatedStock = { id: docSnapshot.id, ...docSnapshot.data() } as Stock;
+      if (relatedStock.id === mainStock.id) return; // Already updated in UI usually, but let's be safe.
+
+      // If it's the exact same service/duration and one of the related categories
+      // OR if it's the same service/duration but different device count for solo profile
+      const sameService = relatedStock.service === mainStock.service;
+      const sameDuration = relatedStock.duration === mainStock.duration;
+      
+      const shouldSync = sameService && sameDuration && (
+        (isRelatedCategory && relatedCategories.includes(relatedStock.category.toLowerCase())) ||
+        (mainStock.category === relatedStock.category)
+      );
+
+      if (!shouldSync) return;
+
+      let newSlots = relatedStock.slots ? [...relatedStock.slots] : undefined;
+      let newQty = relatedStock.quantity;
+
+      if (soldSlot && newSlots) {
+        // Remove specific slot if it matches
+        const originalLen = newSlots.length;
+        newSlots = newSlots.filter(s => !(s.slot === soldSlot.slot && s.pin === soldSlot.pin));
+        
+        // If a slot was found and removed, decrement quantity
+        if (newSlots.length < originalLen) {
+          newQty = Math.max(0, relatedStock.quantity - 1);
+        }
+      } else {
+        // Just sync the quantity decrement
+        newQty = Math.max(0, (relatedStock.quantity || 1) - quantitySold);
+      }
+
+      const updates: Partial<Stock> = {
+        quantity: newQty,
+        status: newQty <= 0 ? 'sold' : relatedStock.status,
+        ...(newSlots !== undefined ? { slots: newSlots } : {})
+      };
+
+      return updateStock(relatedStock.id!, updates);
+    });
+
+    await Promise.all(updatePromises);
+    console.log(`Synced ${querySnapshot.size} related stocks for ${mainStock.email}`);
+  } catch (error) {
+    console.error('Error syncing related stocks:', error);
     throw error;
   }
 };

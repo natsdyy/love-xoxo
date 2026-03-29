@@ -17,7 +17,8 @@ export default function UserProfileDropdown() {
   }, []);
 
   const userRole = localStorage.getItem('userRole');
-  const userName = userRole === 'admin' ? 'Mir' : 'Eli';
+  const storedName = localStorage.getItem('displayName');
+  const userName = storedName || (userRole === 'admin' ? 'Admin' : 'Owner');
 
   const handleSignOut = () => {
     localStorage.removeItem('userRole');

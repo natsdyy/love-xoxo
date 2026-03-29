@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Plus, X, Minus, ChevronDown, Search, CheckCircle2, 
-  TrendingUp, User, Trash2, ChevronLeft, ChevronRight 
+  Plus, X, Minus, ChevronDown, Search, Trash2, Pencil, CheckCircle2, TrendingUp, Calendar 
 } from 'lucide-react';
-import { subscribeToSales, addSale, deleteSale, clearAllSales, type Sale } from '../../lib/transactionService';
+import { subscribeToSales, addSale, updateSale, deleteSale, clearAllSales, type Sale } from '../../lib/transactionService';
 import { getAllUsers } from '../../lib/firebaseAuth';
 import { toast } from 'react-toastify';
 import { SERVICE_CATEGORIES, DURATIONS, STOCK_CATEGORIES } from '../../lib/stockService';
@@ -56,8 +55,8 @@ function CustomSelect({
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [open]);
 
   const selected = options.find((o) => o.value === value);
@@ -89,6 +88,7 @@ function CustomSelect({
             width: coords.width,
             zIndex: 9999,
           }}
+          onMouseDown={(e) => e.stopPropagation()}
           className="bg-white border border-pink-100 rounded-2xl shadow-2xl py-2 max-h-52 overflow-y-auto animate-in slide-in-from-top-1 duration-200 shadow-pink-200/50"
         >
           {options.map((opt) => (
@@ -124,16 +124,17 @@ export default function Sold() {
     { id: '1', service: '', serviceCategory: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }
   ]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
   const [admins, setAdmins] = useState<{ id: string; displayName: string; username: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [expandedAdmins, setExpandedAdmins] = useState<Record<string, boolean>>({});
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [adminFilter, setAdminFilter] = useState('');
 
   useEffect(() => {
     const unsubscribe = subscribeToSales((firebaseSales: Sale[]) => {
       setSales(firebaseSales);
-      setLoading(false);
     });
 
     const fetchAdmins = async () => {
@@ -170,11 +171,11 @@ export default function Sold() {
   };
 
   const updateItem = (id: string, field: keyof SaleItem, value: any) => {
-    setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
   const toggleManual = (id: string, field: string) => {
-    setItems(items.map(item => {
+    setItems(prev => prev.map(item => {
       if (item.id === id) {
         const manualFields = item.manualFields || [];
         const isManual = manualFields.includes(field);
@@ -188,6 +189,35 @@ export default function Sold() {
     }));
   };
 
+  const handleEdit = (sale: Sale) => {
+    setEditingSaleId(sale.id!);
+    setSelectedAdminName(sale.adminName);
+    setCustomerEmail(sale.email || '');
+    setBuyerName(sale.buyerName || '');
+    
+    // Convert Firestore Timestamp or Date to string 'YYYY-MM-DD'
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (sale.createdAt) {
+      const d = sale.createdAt.toDate ? sale.createdAt.toDate() : new Date(sale.createdAt);
+      dateStr = d.toISOString().split('T')[0];
+    }
+    setSoldDate(dateStr);
+
+    setItems([{
+      id: '1',
+      service: sale.service,
+      serviceCategory: sale.serviceCategory,
+      duration: sale.duration,
+      category: sale.category,
+      devices: sale.devices || '',
+      price: String(sale.price),
+      qty: String(sale.quantity),
+      discount: String(sale.discount || 0),
+      manualFields: []
+    }]);
+    setIsModalOpen(true);
+  };
+
   const handleSold = async () => {
     if (!selectedAdminName) {
       toast.error('Please select an admin');
@@ -196,19 +226,14 @@ export default function Sold() {
 
     setIsSubmitting(true);
     try {
-      for (const item of items) {
-        if (!item.service || !item.serviceCategory || !item.duration || !item.category) {
-            toast.error('Please fill in all item fields');
-            setIsSubmitting(false);
-            return;
-        }
+      if (editingSaleId) {
+        const item = items[0];
         const priceNum = Number(item.price) || 0;
         const qtyNum = Number(item.qty) || 1;
         const discountNum = Number(item.discount) || 0;
         const total = (priceNum * qtyNum) - discountNum;
 
-        await addSale({
-          stockId: 'manual', 
+        await updateSale(editingSaleId, {
           service: item.service,
           serviceCategory: item.serviceCategory,
           duration: item.duration,
@@ -220,15 +245,51 @@ export default function Sold() {
           discount: discountNum,
           totalPrice: total,
           adminName: selectedAdminName,
-          status: 'approved',
+          devices: item.devices,
           createdAt: new Date(soldDate)
         });
+        toast.success('Sale updated successfully!');
+      } else {
+        for (const item of items) {
+          if (!item.service || !item.serviceCategory || !item.duration || !item.category) {
+              toast.error('Please fill in all item fields');
+              setIsSubmitting(false);
+              return;
+          }
+          const priceNum = Number(item.price) || 0;
+          const qtyNum = Number(item.qty) || 1;
+          const discountNum = Number(item.discount) || 0;
+          const total = (priceNum * qtyNum) - discountNum;
+
+          await addSale({
+            stockId: 'manual', 
+            service: item.service,
+            serviceCategory: item.serviceCategory,
+            duration: item.duration,
+            category: item.category,
+            email: customerEmail,
+            buyerName: buyerName,
+            quantity: qtyNum,
+            price: priceNum,
+            discount: discountNum,
+            totalPrice: total,
+            adminName: selectedAdminName,
+            status: 'approved',
+            devices: item.devices,
+            createdAt: new Date(soldDate)
+          });
+        }
+        toast.success('Sales added successfully!');
       }
-      toast.success('Sales added successfully!');
       setIsModalOpen(false);
+      setEditingSaleId(null);
       setItems([{ id: '1', service: '', serviceCategory: '', duration: '', category: '', devices: '', price: '0', qty: '1', discount: '0', manualFields: [] }]);
       setCustomerEmail('');
       setBuyerName('');
+      if (!editingSaleId) {
+        // Keep the date as is or reset if preferred. User says it should remain "fixed".
+        // setSoldDate(new Date().toISOString().split('T')[0]);
+      }
     } catch (error) {
       console.error('Error adding sales:', error);
       toast.error('Failed to add sales');
@@ -257,16 +318,59 @@ export default function Sold() {
     }
   };
 
-  const filteredSales = sales.filter(tx => 
-    tx.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.adminName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.buyerName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredSales = sales.filter(tx => {
+    const matchesSearch = !searchQuery ||
+      tx.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tx.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tx.adminName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (tx.buyerName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+
+    const matchesAdmin = !adminFilter || tx.adminName === adminFilter;
+
+    let matchesDate = true;
+    if (filterStartDate || filterEndDate) {
+      const saleDate = tx.createdAt
+        ? (tx.createdAt.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt))
+        : null;
+      if (!saleDate) {
+        matchesDate = false;
+      } else {
+        const saleDateStr = saleDate.toISOString().split('T')[0];
+        if (filterStartDate && saleDateStr < filterStartDate) matchesDate = false;
+        if (filterEndDate && saleDateStr > filterEndDate) matchesDate = false;
+      }
+    }
+
+    return matchesSearch && matchesAdmin && matchesDate;
+  });
 
   const totalRevenue = filteredSales.reduce((acc, tx) => acc + (tx.totalPrice || 0), 0);
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  
+  // Grouping logic — show all active admins (even 0 sales), unless a specific admin is filtered
+  const activeAdminNames = admins.map(a => a.displayName);
+  const adminNamesToShow = adminFilter
+    ? [adminFilter]
+    : activeAdminNames.length > 0
+      ? activeAdminNames
+      : Array.from(new Set(filteredSales.map(s => s.adminName)));
+
+  const salesByAdmin = adminNamesToShow.reduce((acc, name) => {
+    acc[name] = filteredSales.filter(s => s.adminName === name);
+    return acc;
+  }, {} as Record<string, Sale[]>);
+
+  const hasActiveFilters = filterStartDate || filterEndDate || adminFilter || searchQuery;
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setAdminFilter('');
+  };
+
+  const toggleAdmin = (name: string) => {
+    setExpandedAdmins(prev => ({ ...prev, [name]: !prev[name] }));
+  };
 
   return (
     <div className="p-6">
@@ -304,154 +408,253 @@ export default function Sold() {
       </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-pink-50 overflow-hidden">
-        <div className="px-8 py-8 border-b border-pink-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-[#4a1d4a] tracking-tight text-center md:text-left">Records</h2>
-            <p className="text-xs text-slate-500 font-medium italic text-center md:text-left">Permanently preserved historical records</p>
+        <div className="px-8 py-6 border-b border-pink-50 space-y-4">
+
+          {/* Title Row */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-[#4a1d4a] tracking-tight">Records</h2>
+              <p className="text-xs text-slate-400 font-medium italic">Permanently preserved historical records</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 hover:text-red-400 bg-slate-50 hover:bg-red-50 px-3 py-2 rounded-xl transition-all uppercase tracking-widest"
+                >
+                  <X size={12} />
+                  Clear Filters
+                </button>
+              )}
+              <button
+                onClick={handleClearAll}
+                className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
+                title="Delete All Logs"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative group flex-1 md:flex-none">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#ee6996] transition-colors" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search history..."
+          {/* Filter Row */}
+          <div className="flex flex-wrap items-center gap-3">
+
+            {/* Admin Filter */}
+            <div className="relative">
+              <select
+                value={adminFilter}
+                onChange={(e) => setAdminFilter(e.target.value)}
+                className={`appearance-none bg-white border-2 rounded-2xl pl-4 pr-9 py-2.5 text-xs font-bold focus:outline-none transition-all shadow-sm cursor-pointer ${
+                  adminFilter
+                    ? 'border-[#ee6996] text-[#ee6996]'
+                    : 'border-pink-50 text-slate-500 hover:border-pink-200'
+                }`}
+              >
+                <option value="">All Admins</option>
+                {admins.map(admin => (
+                  <option key={admin.id} value={admin.displayName}>
+                    {admin.displayName}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-pink-400" strokeWidth={3} />
+            </div>
+
+            {/* Start Date */}
+            <div className="relative flex items-center">
+              <Calendar size={14} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className={`bg-white border-2 rounded-2xl pl-9 pr-3 py-2.5 text-xs font-bold focus:outline-none transition-all shadow-sm ${
+                  filterStartDate ? 'border-[#ee6996] text-[#ee6996]' : 'border-pink-50 text-slate-500'
+                }`}
+                title="Start Date"
+              />
+              {filterStartDate && (
+                <button onClick={() => setFilterStartDate('')} className="absolute right-2 text-slate-300 hover:text-red-400">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Divider */}
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">to</span>
+
+            {/* End Date */}
+            <div className="relative flex items-center">
+              <Calendar size={14} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className={`bg-white border-2 rounded-2xl pl-9 pr-3 py-2.5 text-xs font-bold focus:outline-none transition-all shadow-sm ${
+                  filterEndDate ? 'border-[#ee6996] text-[#ee6996]' : 'border-pink-50 text-slate-500'
+                }`}
+                title="End Date"
+              />
+              {filterEndDate && (
+                <button onClick={() => setFilterEndDate('')} className="absolute right-2 text-slate-300 hover:text-red-400">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by service, email, buyer..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white border-2 border-pink-50 rounded-2xl pl-11 pr-5 py-2.5 text-sm focus:outline-none focus:border-[#ee6996] transition-all w-full md:w-64 shadow-sm font-medium"
+                className="w-full bg-white border-2 border-pink-50 rounded-2xl pl-9 pr-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:border-[#ee6996] transition-all shadow-sm"
               />
             </div>
-            <button
-              onClick={handleClearAll}
-              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95 shadow-sm border border-pink-50 md:border-transparent"
-              title="Clear All Logs"
-            >
-              <Trash2 size={20} />
-            </button>
+
           </div>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#fff9fb]">
-                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Service</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest">Email</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Buyer</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Duration</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Price</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center text-center">Sold By</th>
-                <th className="px-6 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-center">Date</th>
-                <th className="px-8 py-5 text-[10px] font-black text-[#ee6996] uppercase tracking-widest text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-pink-50/50">
-              {loading ? (
-                <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-400 italic">Loading records...</td></tr>
-              ) : paginatedSales.length === 0 ? (
-                <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-400 italic">No sales logs found</td></tr>
-              ) : (
-                paginatedSales.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-pink-50/5 transition-colors group">
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-pink-100 flex items-center justify-center text-[#ee6996] font-bold text-[10px]">
-                          {tx.service.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-700 text-sm">{tx.service}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{tx.serviceCategory} / {tx.category}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className="text-xs text-slate-500 font-medium truncate max-w-[150px] inline-block">{tx.email}</span>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{tx.buyerName || '---'}</span>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className="text-xs font-semibold text-slate-400">{tx.duration || '---'}</span>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className="text-sm font-black text-emerald-500">₱{tx.totalPrice?.toLocaleString()}</span>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase">
-                        <User size={10} />
-                        {tx.adminName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {tx.createdAt ? (
-                          (tx.createdAt.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt)).toLocaleString()
-                        ) : '---'}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <button 
-                        onClick={() => handleDelete(tx.id!)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
-                        title="Delete record"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+        <div className="p-4 space-y-4 bg-pink-50/10">
+          {Object.entries(salesByAdmin).length === 0 ? (
+            <div className="px-8 py-20 text-center">
+              <p className="text-slate-300 italic font-bold">No sales records found</p>
+              {hasActiveFilters && (
+                <button onClick={clearAllFilters} className="mt-3 text-[10px] font-black text-[#ee6996] uppercase tracking-widest hover:underline">
+                  Clear all filters
+                </button>
               )}
-            </tbody>
-          </table>
-          
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 py-8 bg-[#fffcfd]/20 border-t border-pink-50">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
-                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={20} strokeWidth={3} />
-              </button>
-              
-              <div className="flex items-center gap-1.5">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button
-                    key={i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${
-                      currentPage === i + 1
-                        ? 'bg-[#ee6996] text-white shadow-lg shadow-pink-200'
-                        : 'text-gray-400 hover:bg-pink-50 hover:text-[#ee6996]'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="p-2 text-gray-400 hover:text-[#ee6996] disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={20} strokeWidth={3} />
-              </button>
             </div>
+          ) : (
+            Object.entries(salesByAdmin).map(([adminName, adminSales]) => {
+              const isExpanded = expandedAdmins[adminName] !== false; // Default to expanded
+              const totalAdminRevenue = adminSales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+
+              return (
+                <div key={adminName} className="bg-white rounded-[2rem] border border-pink-50 overflow-hidden shadow-sm">
+                  {/* Collapsible Header */}
+                  <button 
+                    onClick={() => toggleAdmin(adminName)}
+                    className="w-full px-8 py-6 flex items-center justify-between hover:bg-pink-50/30 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-[#ee6996] text-white flex items-center justify-center font-black text-sm">
+                        {adminName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">{adminName}</h3>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                          adminSales.length === 0 ? 'text-slate-300' : 'text-slate-400'
+                        }`}>
+                          {adminSales.length === 0 ? 'No records' : `${adminSales.length} Records`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Contributor Revenue</p>
+                        <p className={`text-sm font-black ${
+                          adminSales.length === 0 ? 'text-slate-300' : 'text-[#ee6996]'
+                        }`}>
+                          {adminSales.length === 0 ? '—' : `₱${totalAdminRevenue.toLocaleString()}`}
+                        </p>
+                      </div>
+                      <div className={`w-8 h-8 rounded-xl bg-pink-50 flex items-center justify-center text-[#ee6996] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                        <ChevronDown size={16} strokeWidth={3} />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Grouped Table */}
+                  {isExpanded && (
+                    <div className="overflow-x-auto animate-in slide-in-from-top-2 duration-300 border-t border-pink-50/50">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[#fff9fb]">
+                            <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Service</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Buyer & Email</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Duration</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Price</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Date</th>
+                            <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-pink-50/30">
+                          {adminSales.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-8 py-8 text-center">
+                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No records match current filters</p>
+                              </td>
+                            </tr>
+                          ) : adminSales.map((tx) => (
+                            <tr key={tx.id} className="hover:bg-pink-50/10 transition-colors group/row">
+                              <td className="px-8 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-7 h-7 rounded-lg bg-pink-100 flex items-center justify-center text-[#ee6996] font-black text-[9px]">
+                                    {tx.service.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-slate-700 text-xs">{tx.service}</span>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">{tx.category}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                   <span className="text-[10px] font-black text-slate-700 uppercase">{tx.buyerName || '---'}</span>
+                                   <span className="text-[9px] text-slate-400 font-bold truncate max-w-[120px]">{tx.email}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">{tx.duration || '---'}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-xs font-black text-emerald-500">₱{tx.totalPrice?.toLocaleString()}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-[9px] text-slate-400 font-bold">
+                                  {tx.createdAt ? (
+                                    (tx.createdAt.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt)).toLocaleDateString()
+                                  ) : '---'}
+                                </span>
+                              </td>
+                              <td className="px-8 py-4 text-right flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={() => handleEdit(tx)}
+                                  className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(tx.id!)}
+                                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => { setIsModalOpen(false); setEditingSaleId(null); }} />
           <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden">
             <div className="flex items-center justify-between px-10 py-8 border-b border-pink-50 bg-white">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Add Manual Sale</h2>
-                <p className="text-xs text-slate-400 font-medium italic mt-1">Record sales that were handled outside the system</p>
+                <h2 className="text-xl font-bold text-gray-800">{editingSaleId ? 'Edit Sale Record' : 'Add Manual Sale'}</h2>
+                <p className="text-xs text-slate-400 font-medium italic mt-1">{editingSaleId ? 'Modify an existing sales record' : 'Record sales that were handled outside the system'}</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-pink-50 rounded-2xl text-gray-300 hover:text-pink-500 transition-all shadow-sm">
+              <button onClick={() => { setIsModalOpen(false); setEditingSaleId(null); }} className="p-3 hover:bg-pink-50 rounded-2xl text-gray-300 hover:text-pink-500 transition-all shadow-sm">
                 <X size={20} />
               </button>
             </div>
@@ -496,15 +699,17 @@ export default function Sold() {
               <div className="space-y-8">
                 <div className="flex items-center justify-between pb-3 border-b-2 border-dashed border-pink-100">
                   <h3 className="text-[11px] font-black text-[#ee6996] uppercase tracking-widest px-1">Sale Items</h3>
-                  <button onClick={addItem} className="flex items-center gap-2 text-[10px] font-black text-pink-600 bg-pink-50 hover:bg-pink-100 px-4 py-2 rounded-xl transition-all shadow-sm uppercase tracking-widest hover:scale-105 active:scale-95">
-                    <Plus size={14} strokeWidth={3} /> Add Item
-                  </button>
+                  {!editingSaleId && (
+                    <button onClick={addItem} className="flex items-center gap-2 text-[10px] font-black text-pink-600 bg-pink-50 hover:bg-pink-100 px-4 py-2 rounded-xl transition-all shadow-sm uppercase tracking-widest hover:scale-105 active:scale-95">
+                      <Plus size={14} strokeWidth={3} /> Add Item
+                    </button>
+                  )}
                 </div>
 
                 {items.map((item, index) => (
                   <div key={item.id} className="relative bg-[#fffcfd]/50 border-2 border-pink-100/30 rounded-3xl p-8 shadow-sm group hover:border-[#ee6996]/20 transition-all">
                     <div className="absolute -top-3 left-8 bg-white px-4 text-[11px] font-black text-[#ee6996] uppercase tracking-[0.2em] border-2 border-pink-100/30 rounded-full shadow-sm">Item #{index + 1}</div>
-                    {items.length > 1 && (
+                    {items.length > 1 && !editingSaleId && (
                       <button onClick={() => removeItem(item.id)} className="absolute -top-3 -right-3 w-9 h-9 bg-red-50 text-red-500 rounded-full flex items-center justify-center border-2 border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-md group-hover:scale-110 active:scale-90">
                         <Minus size={18} strokeWidth={3} />
                       </button>
@@ -621,7 +826,7 @@ export default function Sold() {
                   disabled={isSubmitting}
                   className="flex-[2] bg-gradient-to-r from-[#ee6996] to-[#fc4e8d] hover:from-[#d55a84] hover:to-[#e1407a] text-white py-5 rounded-[2rem] font-black text-lg shadow-2xl shadow-pink-200/50 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? 'Recording Sales...' : 'Confirm Sales'}
+                  {isSubmitting ? (editingSaleId ? 'Updating...' : 'Recording Sales...') : (editingSaleId ? 'Update Sale' : 'Confirm Sales')}
                 </button>
               </div>
             </div>
